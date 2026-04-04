@@ -2,11 +2,12 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { 
-  LayoutDashboard, Truck, Users, Map, Calendar, Cloud, 
+import {
+  LayoutDashboard, Truck, Users, Map, Calendar, Cloud,
   Fuel, Wrench, TrendingUp, Activity, Plus, ArrowRight,
   Car, UserCheck, AlertTriangle, CheckCircle, Clock,
-  Battery, Thermometer, Gauge, Route, Navigation, Eye
+  Battery, Thermometer, Gauge, Route, Navigation, Eye,
+  BarChart3
 } from "lucide-react";
 import StatCard from "@/components/ui/StatCard";
 import GlassCard from "@/components/ui/GlassCard";
@@ -18,54 +19,50 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import WeatherWidget from "@/components/weather/WeatherWidget";
 import CalendarWidget from "@/components/calendar/CalendarWidget";
 import api from "@/api/apiClient";
-import { useAppSettings } from '@/lib/ThemeContext';
-import { useAuth } from '@/lib/AuthContext';
-import { format, formatDistanceToNow, isToday, isThisWeek, isValid } from 'date-fns';
-import { pl } from 'date-fns/locale';
+import { useAppSettings } from "@/lib/ThemeContext";
+import { useAuth } from "@/lib/AuthContext";
+import { format, formatDistanceToNow, isToday, isThisWeek, isValid } from "date-fns";
+import { pl } from "date-fns/locale";
 
-// Typy serwisów
 const serviceTypeLabels = {
-  oil_change: 'Wymiana oleju',
-  tires: 'Wymiana opon',
-  brakes: 'Hamulce',
-  repair: 'Naprawa',
-  inspection: 'Przegląd',
-  other: 'Inne',
+  oil_change: "Wymiana oleju",
+  tires: "Wymiana opon",
+  brakes: "Hamulce",
+  repair: "Naprawa",
+  inspection: "Przegląd",
+  other: "Inne",
 };
 
-// Statusy pojazdów
 const statusColors = {
-  available: 'text-green-400 bg-green-400/10',
-  in_use: 'text-blue-400 bg-blue-400/10',
-  maintenance: 'text-yellow-400 bg-yellow-400/10',
-  unavailable: 'text-red-400 bg-red-400/10',
+  available: "text-green-400 bg-green-400/10",
+  in_use: "text-blue-400 bg-blue-400/10",
+  maintenance: "text-yellow-400 bg-yellow-400/10",
+  unavailable: "text-red-400 bg-red-400/10",
 };
 
 const statusLabels = {
-  available: 'Dostępny',
-  in_use: 'W użyciu',
-  maintenance: 'Serwis',
-  unavailable: 'Niedostępny',
+  available: "Dostępny",
+  in_use: "W użyciu",
+  maintenance: "Serwis",
+  unavailable: "Niedostępny",
 };
 
-// Statusy tras
 const tripStatusColors = {
-  in_progress: 'text-blue-400 bg-blue-400/10',
-  completed: 'text-green-400 bg-green-400/10',
-  cancelled: 'text-red-400 bg-red-400/10',
+  in_progress: "text-blue-400 bg-blue-400/10",
+  completed: "text-green-400 bg-green-400/10",
+  cancelled: "text-red-400 bg-red-400/10",
 };
 
 const tripStatusLabels = {
-  in_progress: 'W trakcie',
-  completed: 'Zakończona',
-  cancelled: 'Anulowana',
+  in_progress: "W trakcie",
+  completed: "Zakończona",
+  cancelled: "Anulowana",
 };
 
-// ✅ Funkcja pomocnicza do bezpiecznego formatowania daty
 const safeFormatDistanceToNow = (date) => {
-  if (!date) return 'data nieznana';
+  if (!date) return "data nieznana";
   const parsedDate = new Date(date);
-  if (!isValid(parsedDate)) return 'nieprawidłowa data';
+  if (!isValid(parsedDate)) return "nieprawidłowa data";
   return formatDistanceToNow(parsedDate, { addSuffix: true, locale: pl });
 };
 
@@ -73,67 +70,78 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { settings } = useAppSettings();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState("overview");
+  const [modulesSettings, setModulesSettings] = useState({
+    weather: true,
+    fuelPrices: true,
+  });
 
-  // ✅ POPRAWIENE zapytania - dodane .catch() dla bezpieczeństwa
   const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
-    queryKey: ['vehicles'],
+    queryKey: ["vehicles"],
     queryFn: () => api.getVehicles().catch(() => []),
   });
 
   const { data: drivers = [], isLoading: driversLoading } = useQuery({
-    queryKey: ['drivers'],
+    queryKey: ["drivers"],
     queryFn: () => api.getDrivers().catch(() => []),
   });
 
   const { data: trips = [], isLoading: tripsLoading } = useQuery({
-    queryKey: ['trips'],
+    queryKey: ["trips"],
     queryFn: () => api.getTrips().catch(() => []),
   });
 
   const { data: services = [], isLoading: servicesLoading } = useQuery({
-    queryKey: ['services'],
+    queryKey: ["services"],
     queryFn: () => api.getServices().catch(() => []),
   });
 
-  // ✅ POPRAWIENE - dodane queryFn dla refuelings
   const { data: refuelings = [], isLoading: refuelingsLoading } = useQuery({
-    queryKey: ['refuelings'],
+    queryKey: ["refuelings"],
     queryFn: () => api.getRefuels().catch(() => []),
   });
 
   const { data: companySettings = {} } = useQuery({
-    queryKey: ['companySettings'],
+    queryKey: ["companySettings"],
     queryFn: () => api.getCompanySettings().catch(() => ({})),
   });
 
-  // Pobierz ustawienia API dla pogody
   const [apiSettings, setApiSettings] = useState({
-    openWeatherApiKey: '',
-    collectApiKey: '',
+    openWeatherApiKey: "",
+    collectApiKey: "",
   });
 
-  // Wczytaj ustawienia z localStorage
+  // Wczytaj ustawienia modułów i API z localStorage
   useEffect(() => {
-    const savedApiSettings = localStorage.getItem('api_settings');
-    if (savedApiSettings) {
-      try {
-        setApiSettings(JSON.parse(savedApiSettings));
-      } catch (e) {}
-    }
+    const loadSettings = () => {
+      const savedApi = localStorage.getItem("api_settings");
+      if (savedApi) {
+        try { setApiSettings(JSON.parse(savedApi)); } catch (e) {}
+      }
+      const savedModules = localStorage.getItem("modules_settings");
+      if (savedModules) {
+        try { setModulesSettings(JSON.parse(savedModules)); } catch (e) {}
+      }
+    };
+    loadSettings();
+    window.addEventListener("modulesSettingsChanged", loadSettings);
+    window.addEventListener("storage", loadSettings);
+    return () => {
+      window.removeEventListener("modulesSettingsChanged", loadSettings);
+      window.removeEventListener("storage", loadSettings);
+    };
   }, []);
 
   // Statystyki
   const stats = useMemo(() => {
-    const availableVehicles = vehicles.filter(v => v.status === 'available').length;
-    const inUseVehicles = vehicles.filter(v => v.status === 'in_use').length;
-    const maintenanceVehicles = vehicles.filter(v => v.status === 'maintenance').length;
-    const activeTrips = trips.filter(t => t.status === 'in_progress').length;
-    const completedTrips = trips.filter(t => t.status === 'completed').length;
+    const availableVehicles = vehicles.filter((v) => v.status === "available").length;
+    const inUseVehicles = vehicles.filter((v) => v.status === "in_use").length;
+    const maintenanceVehicles = vehicles.filter((v) => v.status === "maintenance").length;
+    const activeTrips = trips.filter((t) => t.status === "in_progress").length;
+    const completedTrips = trips.filter((t) => t.status === "completed").length;
     const totalMileage = vehicles.reduce((sum, v) => sum + (v.mileage || 0), 0);
     const totalServiceCost = services.reduce((sum, s) => sum + (s.cost || 0), 0);
     const totalFuelCost = refuelings.reduce((sum, r) => sum + (r.cost || 0), 0);
-    const totalTrips = trips.length;
 
     return {
       availableVehicles,
@@ -144,102 +152,92 @@ export default function Dashboard() {
       totalMileage,
       totalServiceCost,
       totalFuelCost,
-      totalTrips,
+      totalTrips: trips.length,
     };
   }, [vehicles, trips, services, refuelings]);
 
-  // Ostatnie trasy
-  const recentTrips = useMemo(() => {
-    return [...trips]
-      .filter(trip => trip.startDate && isValid(new Date(trip.startDate))) // ✅ Filtruj nieprawidłowe daty
+  const recentTrips = useMemo(() =>
+    [...trips]
+      .filter((t) => t.startDate && isValid(new Date(t.startDate)))
       .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))
-      .slice(0, 5);
-  }, [trips]);
+      .slice(0, 5),
+    [trips]
+  );
 
-  // Nadchodzące serwisy
   const upcomingServices = useMemo(() => {
     const now = new Date();
     return [...services]
-      .filter(s => s.date && isValid(new Date(s.date)) && new Date(s.date) >= now)
+      .filter((s) => s.date && isValid(new Date(s.date)) && new Date(s.date) >= now)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 3);
   }, [services]);
 
-  // Ostatnie tankowania
-  const recentRefuelings = useMemo(() => {
-    return [...refuelings]
-      .filter(r => r.date && isValid(new Date(r.date)))
+  const recentRefuelings = useMemo(() =>
+    [...refuelings]
+      .filter((r) => r.date && isValid(new Date(r.date)))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 3);
-  }, [refuelings]);
+      .slice(0, 3),
+    [refuelings]
+  );
 
-  // Pojazdy wymagające uwagi (niski stan paliwa)
-  const lowFuelVehicles = useMemo(() => {
-    return vehicles.filter(v => (v.fuelLevel || 0) < 20);
-  }, [vehicles]);
+  const lowFuelVehicles = useMemo(
+    () => vehicles.filter((v) => (v.fuelLevel || 0) < 20),
+    [vehicles]
+  );
 
-  // Aktywne trasy
-  const activeTripsList = useMemo(() => {
-    return trips.filter(t => t.status === 'in_progress');
-  }, [trips]);
+  const activeTripsList = useMemo(
+    () => trips.filter((t) => t.status === "in_progress"),
+    [trips]
+  );
 
-  // Funkcje nawigacji
-  const goToTrips = () => navigate('/trips');
-  const goToVehicles = () => navigate('/vehicles');
-  const goToServices = () => navigate('/services');
-  const goToRefueling = () => navigate('/refueling');
-  const goToMap = () => navigate('/map');
-  const goToTripDetail = (tripId) => navigate(`/trips/${tripId}`);
-
-  // Pobierz nazwę pojazdu
   const getVehicleName = (id) => {
-    const vehicle = vehicles.find(v => v.id === id);
-    return vehicle ? `${vehicle.name || vehicle.make || 'Pojazd'} ${vehicle.licensePlate || vehicle.registrationNumber || ''}`.trim() || 'Nieznany' : 'Nieznany';
+    const v = vehicles.find((v) => v.id === id);
+    return v ? `${v.name || v.make || "Pojazd"} ${v.licensePlate || v.registrationNumber || ""}`.trim() : "Nieznany";
   };
 
-  // Pobierz nazwę kierowcy
   const getDriverName = (id) => {
-    const driver = drivers.find(d => d.id === id);
-    if (!driver) return 'Nieznany';
-    return driver.name || `${driver.firstName || ''} ${driver.lastName || ''}`.trim() || 'Nieznany';
+    const d = drivers.find((d) => d.id === id);
+    if (!d) return "Nieznany";
+    return d.name || `${d.firstName || ""} ${d.lastName || ""}`.trim() || "Nieznany";
   };
 
-  // Formatowanie daty
   const formatDate = (date) => {
-    if (!date) return '---';
-    const parsedDate = new Date(date);
-    if (!isValid(parsedDate)) return '---';
-    return format(parsedDate, 'dd MMM yyyy, HH:mm', { locale: pl });
+    if (!date) return "---";
+    const p = new Date(date);
+    return isValid(p) ? format(p, "dd MMM yyyy, HH:mm", { locale: pl }) : "---";
   };
 
-  // Formatowanie odległości
   const formatDistance = (km) => {
-    if (!km && km !== 0) return '0 km';
+    if (!km && km !== 0) return "0 km";
     if (km < 1) return `${Math.round(km * 1000)} m`;
     return `${km.toFixed(1)} km`;
   };
 
-  // Stan ładowania
-  const isLoading = vehiclesLoading || driversLoading || tripsLoading || servicesLoading || refuelingsLoading;
+  const isLoading = vehiclesLoading || driversLoading || tripsLoading || servicesLoading;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
+
+  // Lokalizacja do widgetu pogody
+  const weatherLocation = companySettings?.city
+    ? { city: companySettings.city }
+    : null;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Panel główny"
-        subtitle={`Witaj${user?.name ? `, ${user.name}` : ''}! Oto podsumowanie Twojej floty.`}
+        subtitle={`Witaj${user?.name ? `, ${user.name}` : ""}! Oto podsumowanie Twojej floty.`}
         icon={LayoutDashboard}
       />
 
       {/* Karty statystyk */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Pojazdy"
           value={vehicles.length}
@@ -247,16 +245,16 @@ export default function Dashboard() {
           trend={stats.availableVehicles}
           trendLabel="dostępnych"
           color="blue"
-          onClick={goToVehicles}
+          onClick={() => navigate("/vehicles")}
         />
         <StatCard
           title="Kierowcy"
           value={drivers.length}
           icon={Users}
-          trend={drivers.filter(d => d.status === 'active').length}
+          trend={drivers.filter((d) => d.status === "active").length}
           trendLabel="aktywnych"
           color="green"
-          onClick={() => navigate('/drivers')}
+          onClick={() => navigate("/drivers")}
         />
         <StatCard
           title="Aktywne trasy"
@@ -265,419 +263,506 @@ export default function Dashboard() {
           trend={stats.completedTrips}
           trendLabel="zakończonych"
           color="purple"
-          onClick={goToTrips}
+          onClick={() => navigate("/trips")}
         />
         <StatCard
           title="Przejechane km"
-          value={formatDistance(stats.totalMileage)}
-          icon={Activity}
+          value={`${(stats.totalMileage / 1000).toFixed(0)}k`}
+          icon={Gauge}
           trend={stats.totalTrips}
-          trendLabel="tras"
+          trendLabel="tras łącznie"
           color="orange"
+          onClick={() => navigate("/trips")}
         />
       </div>
 
-      {/* Drugi rząd statystyk */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatCard
-          title="Koszty serwisów"
-          value={`${stats.totalServiceCost.toFixed(2)} zł`}
-          icon={Wrench}
-          trend={services.length}
-          trendLabel="serwisów"
-          color="yellow"
-          onClick={goToServices}
-        />
-        <StatCard
-          title="Koszty paliwa"
-          value={`${stats.totalFuelCost.toFixed(2)} zł`}
-          icon={Fuel}
-          trend={refuelings.length}
-          trendLabel="tankowań"
-          color="cyan"
-          onClick={goToRefueling}
-        />
-        <StatCard
-          title="Pojazdy w serwisie"
-          value={stats.maintenanceVehicles}
-          icon={AlertTriangle}
-          trend={stats.maintenanceVehicles}
-          trendLabel="wymagają uwagi"
-          color="red"
-        />
-      </div>
+      {/* Alerty i szybkie akcje */}
+      {(lowFuelVehicles.length > 0 || activeTripsList.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {lowFuelVehicles.length > 0 && (
+            <GlassCard className="p-4 border border-red-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+                <h3 className="text-theme-white font-semibold">
+                  Niski poziom paliwa ({lowFuelVehicles.length})
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {lowFuelVehicles.slice(0, 3).map((v) => (
+                  <div key={v.id} className="flex items-center justify-between text-sm">
+                    <span className="text-theme-white-secondary">
+                      {v.name || v.make} — {v.licensePlate}
+                    </span>
+                    <Badge variant="destructive" className="text-xs">
+                      {v.fuelLevel || 0} L
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full text-xs"
+                onClick={() => navigate("/refueling")}
+              >
+                Zarejestruj tankowanie
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            </GlassCard>
+          )}
+          {activeTripsList.length > 0 && (
+            <GlassCard className="p-4 border border-blue-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Navigation className="w-5 h-5 text-blue-400" />
+                <h3 className="text-theme-white font-semibold">
+                  Aktywne trasy ({activeTripsList.length})
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {activeTripsList.slice(0, 3).map((t) => (
+                  <div key={t.id} className="flex items-center justify-between text-sm">
+                    <span className="text-theme-white-secondary">
+                      {getVehicleName(t.vehicleId)}
+                    </span>
+                    <Badge className="text-xs bg-blue-500/20 text-blue-400">
+                      W trakcie
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full text-xs"
+                onClick={() => navigate("/trips")}
+              >
+                Zobacz wszystkie trasy
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            </GlassCard>
+          )}
+        </div>
+      )}
 
-      {/* Widgety - Pogoda i Kalendarz */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Widget pogody */}
-        <WeatherWidget
-          apiKey={apiSettings.openWeatherApiKey}
-          showForecast={true}
-          autoRefresh={true}
-          className="lg:col-span-1"
-        />
+      {/* Widgety: Pogoda + Ceny paliw */}
+      {(modulesSettings.weather !== false || modulesSettings.fuelPrices !== false) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {modulesSettings.weather !== false && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <WeatherWidget
+                location={weatherLocation}
+                apiKey={apiSettings.openWeatherApiKey || null}
+                showForecast={true}
+                autoRefresh={true}
+              />
+            </motion.div>
+          )}
+          {modulesSettings.fuelPrices !== false && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <GlassCard className="p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Fuel className="w-5 h-5 text-green-400" />
+                  <h3 className="text-theme-white font-semibold">Ceny paliw</h3>
+                  <Badge className="text-xs bg-green-500/20 text-green-400 ml-auto">
+                    Live
+                  </Badge>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { name: "Pb95", color: "text-green-400", price: "5.89", unit: "zł/L" },
+                    { name: "Pb98", color: "text-blue-400", price: "6.29", unit: "zł/L" },
+                    { name: "ON", color: "text-yellow-400", price: "5.99", unit: "zł/L" },
+                    { name: "LPG", color: "text-orange-400", price: "2.99", unit: "zł/L" },
+                  ].map((fuel) => (
+                    <div
+                      key={fuel.name}
+                      className="flex items-center justify-between p-2 rounded-lg bg-slate-800/50"
+                    >
+                      <span className={`font-semibold ${fuel.color}`}>
+                        {fuel.name}
+                      </span>
+                      <span className="text-theme-white font-bold">
+                        {fuel.price}{" "}
+                        <span className="text-xs text-theme-white-muted">
+                          {fuel.unit}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-theme-white-muted mt-3 text-center">
+                  * Ceny orientacyjne — skonfiguruj klucz CollectAPI w ustawieniach
+                </p>
+              </GlassCard>
+            </motion.div>
+          )}
+        </div>
+      )}
 
-        {/* Widget kalendarza */}
+      {/* Kalendarz */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
         <CalendarWidget
           trips={trips}
           services={services}
           refuelings={refuelings}
           vehicles={vehicles}
-          onEventClick={(event) => {
-            if (event.type === 'trip') {
-              goToTripDetail(event.details.id);
-            } else if (event.type === 'service') {
-              navigate('/services');
-            } else if (event.type === 'refueling') {
-              navigate('/refueling');
-            }
-          }}
-          className="lg:col-span-1"
         />
-      </div>
+      </motion.div>
 
-      {/* Tabs z dodatkowymi informacjami */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-slate-800/50 border border-slate-700 p-1">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-gradient-primary">
-            Przegląd
-          </TabsTrigger>
-          <TabsTrigger value="active-trips" className="data-[state=active]:bg-gradient-primary">
-            Aktywne trasy
-          </TabsTrigger>
-          <TabsTrigger value="services" className="data-[state=active]:bg-gradient-primary">
-            Nadchodzące serwisy
-          </TabsTrigger>
-          <TabsTrigger value="low-fuel" className="data-[state=active]:bg-gradient-primary">
-            Niskie paliwo
-          </TabsTrigger>
+      {/* Zakładki z danymi */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="w-full bg-slate-800/50 border border-slate-700 p-1 flex flex-wrap gap-1 h-auto">
+          {[
+            { id: "overview", label: "Przegląd", icon: LayoutDashboard },
+            { id: "trips", label: "Trasy", icon: Route },
+            { id: "services", label: "Serwisy", icon: Wrench },
+            { id: "fuel", label: "Tankowania", icon: Fuel },
+            { id: "fleet", label: "Flota", icon: Car },
+          ].map(({ id, label, icon: Icon }) => (
+            <TabsTrigger
+              key={id}
+              value={id}
+              className="flex-1 data-[state=active]:bg-gradient-primary flex items-center gap-1.5 text-xs"
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {/* Zakładka: Przegląd */}
+        {/* PRZEGLĄD */}
         <TabsContent value="overview" className="mt-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Ostatnie trasy */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Statystyki kosztów */}
             <GlassCard className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-theme-white font-semibold flex items-center gap-2">
-                  <Route className="w-5 h-5 text-primary" />
-                  Ostatnie trasy
-                </h3>
-                <Button variant="ghost" size="sm" onClick={goToTrips}>
-                  Wszystkie <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
-              </div>
+              <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                Koszty
+              </h3>
               <div className="space-y-3">
-                {recentTrips.length === 0 ? (
-                  <div className="text-center py-8 text-theme-white-muted">
-                    Brak tras do wyświetlenia
-                  </div>
-                ) : (
-                  recentTrips.map((trip) => (
-                    <motion.div
-                      key={trip.id}
-                      whileHover={{ x: 4 }}
-                      onClick={() => goToTripDetail(trip.id)}
-                      className="p-3 rounded-lg bg-slate-800/50 cursor-pointer hover:bg-slate-700/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Badge className={tripStatusColors[trip.status] || 'bg-slate-500'}>
-                            {tripStatusLabels[trip.status] || trip.status}
-                          </Badge>
-                          <span className="text-xs text-theme-white-muted">
-                            {formatDate(trip.startDate)}
-                          </span>
-                        </div>
-                        <span className="text-xs text-theme-white-muted">
-                          {trip.distance ? formatDistance(trip.distance) : '---'}
-                        </span>
-                      </div>
-                      <p className="text-theme-white text-sm">
-                        {trip.startLocation || 'Brak startu'} → {trip.endLocation || 'w trakcie'}
-                      </p>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-theme-white-muted">
-                        <span className="flex items-center gap-1">
-                          <Truck className="w-3 h-3" />
-                          {getVehicleName(trip.vehicleId)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <UserCheck className="w-3 h-3" />
-                          {getDriverName(trip.driverId)}
-                        </span>
-                      </div>
-                    </motion.div>
-                  ))
-                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-theme-white-secondary text-sm">Serwisy</span>
+                  <span className="text-theme-white font-semibold">
+                    {stats.totalServiceCost.toFixed(2)} zł
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-theme-white-secondary text-sm">Tankowania</span>
+                  <span className="text-theme-white font-semibold">
+                    {stats.totalFuelCost.toFixed(2)} zł
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-700 pt-2">
+                  <span className="text-theme-white font-semibold text-sm">Łącznie</span>
+                  <span className="text-primary font-bold">
+                    {(stats.totalServiceCost + stats.totalFuelCost).toFixed(2)} zł
+                  </span>
+                </div>
               </div>
             </GlassCard>
 
-            {/* Ostatnie tankowania */}
+            {/* Stan floty */}
             <GlassCard className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-theme-white font-semibold flex items-center gap-2">
-                  <Fuel className="w-5 h-5 text-primary" />
-                  Ostatnie tankowania
-                </h3>
-                <Button variant="ghost" size="sm" onClick={goToRefueling}>
-                  Wszystkie <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {recentRefuelings.length === 0 ? (
-                  <div className="text-center py-8 text-theme-white-muted">
-                    Brak tankowań do wyświetlenia
+              <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                <Car className="w-4 h-4 text-blue-400" />
+                Stan floty
+              </h3>
+              <div className="space-y-2">
+                {[
+                  { label: "Dostępne", count: stats.availableVehicles, color: "bg-green-400" },
+                  { label: "W użyciu", count: stats.inUseVehicles, color: "bg-blue-400" },
+                  { label: "W serwisie", count: stats.maintenanceVehicles, color: "bg-yellow-400" },
+                ].map(({ label, count, color }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${color}`} />
+                    <span className="text-theme-white-secondary text-sm flex-1">{label}</span>
+                    <span className="text-theme-white font-semibold">{count}</span>
                   </div>
-                ) : (
-                  recentRefuelings.map((refueling) => (
-                    <div
-                      key={refueling.id}
-                      className="p-3 rounded-lg bg-slate-800/50"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-theme-white font-medium">
-                            {getVehicleName(refueling.vehicleId)}
-                          </p>
-                          <p className="text-xs text-theme-white-muted mt-1">
-                            {formatDate(refueling.date)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-theme-white font-bold">
-                            {refueling.liters} L
-                          </p>
-                          <p className="text-xs text-theme-white-muted">
-                            {refueling.cost?.toFixed(2)} zł
-                          </p>
-                        </div>
-                      </div>
-                      {refueling.price && (
-                        <div className="mt-2 text-xs text-theme-white-muted">
-                          Cena: {refueling.price.toFixed(2)} zł/L
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
+                ))}
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-3 w-full text-xs"
+                onClick={() => navigate("/vehicles")}
+              >
+                Zarządzaj flotą <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            </GlassCard>
+
+            {/* Nadchodzące serwisy */}
+            <GlassCard className="p-4">
+              <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-yellow-400" />
+                Nadchodzące serwisy
+              </h3>
+              {upcomingServices.length === 0 ? (
+                <div className="text-center py-4">
+                  <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <p className="text-theme-white-secondary text-sm">Brak zaplanowanych serwisów</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {upcomingServices.map((s) => (
+                    <div key={s.id} className="p-2 rounded-lg bg-slate-800/50 border border-slate-700">
+                      <p className="text-theme-white text-sm font-medium">
+                        {serviceTypeLabels[s.serviceType] || s.name || "Serwis"}
+                      </p>
+                      <p className="text-theme-white-muted text-xs">
+                        {getVehicleName(s.vehicleId)} •{" "}
+                        {s.date ? format(new Date(s.date), "dd MMM yyyy", { locale: pl }) : "---"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-3 w-full text-xs"
+                onClick={() => navigate("/services")}
+              >
+                Wszystkie serwisy <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
             </GlassCard>
           </div>
         </TabsContent>
 
-        {/* Zakładka: Aktywne trasy */}
-        <TabsContent value="active-trips" className="mt-4">
+        {/* TRASY */}
+        <TabsContent value="trips" className="mt-4">
           <GlassCard className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-theme-white font-semibold flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary animate-pulse" />
-                Aktywne trasy ({activeTripsList.length})
+                <Route className="w-4 h-4 text-primary" />
+                Ostatnie trasy
               </h3>
-              <div className="flex gap-2">
-                <Button onClick={goToMap} variant="outline">
-                  <Map className="w-4 h-4 mr-2" />
-                  Mapa tras
-                </Button>
-                <Button onClick={goToTrips} className="bg-gradient-primary">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nowa trasa
-                </Button>
-              </div>
+              <Button size="sm" variant="outline" onClick={() => navigate("/trips")}>
+                <Plus className="w-4 h-4 mr-1" /> Nowa trasa
+              </Button>
             </div>
-
-            {activeTripsList.length === 0 ? (
-              <div className="text-center py-12">
-                <Route className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <p className="text-theme-white-muted">Brak aktywnych tras</p>
-                <Button onClick={goToTrips} className="mt-4">
-                  Rozpocznij nową trasę
+            {recentTrips.length === 0 ? (
+              <div className="text-center py-8">
+                <Route className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                <p className="text-theme-white-secondary">Brak zarejestrowanych tras</p>
+                <Button
+                  className="mt-3 bg-gradient-primary"
+                  size="sm"
+                  onClick={() => navigate("/trips")}
+                >
+                  Dodaj pierwszą trasę
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
-                {activeTripsList.map((trip) => {
-                  const startTime = trip.startDate ? new Date(trip.startDate) : null;
-                  // ✅ Użyj bezpiecznej funkcji zamiast bezpośredniego formatDistanceToNow
-                  const duration = startTime && isValid(startTime) 
-                    ? formatDistanceToNow(startTime, { addSuffix: true, locale: pl })
-                    : 'przed chwilą';
-                  const vehicle = vehicles.find(v => v.id === trip.vehicleId);
-                  
-                  return (
-                    <motion.div
-                      key={trip.id}
-                      whileHover={{ scale: 1.01 }}
-                      className="p-4 rounded-xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30"
-                    >
-                      <div className="flex items-start justify-between flex-wrap gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                              W trakcie
-                            </Badge>
-                            <span className="text-xs text-theme-white-muted">
-                              Rozpoczęto {duration}
-                            </span>
-                          </div>
-                          <p className="text-theme-white font-medium">
-                            {trip.startLocation || 'Brak lokalizacji startowej'}
-                          </p>
-                          <div className="flex items-center gap-4 mt-2 text-sm">
-                            <span className="flex items-center gap-1 text-theme-white-muted">
-                              <Truck className="w-4 h-4" />
-                              {vehicle ? `${vehicle.name || vehicle.make || 'Pojazd'} ${vehicle.licensePlate || vehicle.registrationNumber || ''}`.trim() || 'Nieznany' : 'Nieznany'}
-                            </span>
-                            <span className="flex items-center gap-1 text-theme-white-muted">
-                              <UserCheck className="w-4 h-4" />
-                              {getDriverName(trip.driverId)}
-                            </span>
-                            <span className="flex items-center gap-1 text-theme-white-muted">
-                              <Gauge className="w-4 h-4" />
-                              {trip.startOdometer || 0} km
-                            </span>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => goToTripDetail(trip.id)}
-                          className="bg-gradient-primary"
-                        >
-                          Zakończ trasę
-                        </Button>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+              <div className="space-y-2">
+                {recentTrips.map((trip) => (
+                  <div
+                    key={trip.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-slate-700 hover:border-slate-500 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/trips/${trip.id}`)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-theme-white font-medium text-sm truncate">
+                        {trip.startLocation || "Start"} → {trip.endLocation || "Cel"}
+                      </p>
+                      <p className="text-theme-white-muted text-xs">
+                        {getVehicleName(trip.vehicleId)} • {getDriverName(trip.driverId)}
+                      </p>
+                      <p className="text-theme-white-muted text-xs">
+                        {formatDate(trip.startDate)}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 ml-3">
+                      <Badge
+                        className={`text-xs ${tripStatusColors[trip.status] || "text-slate-400 bg-slate-400/10"}`}
+                      >
+                        {tripStatusLabels[trip.status] || trip.status}
+                      </Badge>
+                      {trip.distance && (
+                        <span className="text-xs text-theme-white-muted">
+                          {formatDistance(trip.distance)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </GlassCard>
         </TabsContent>
 
-        {/* Zakładka: Nadchodzące serwisy */}
+        {/* SERWISY */}
         <TabsContent value="services" className="mt-4">
           <GlassCard className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-theme-white font-semibold flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-primary" />
-                Nadchodzące serwisy
+                <Wrench className="w-4 h-4 text-yellow-400" />
+                Serwisy
               </h3>
-              <Button variant="ghost" size="sm" onClick={goToServices}>
-                Wszystkie <ArrowRight className="w-4 h-4 ml-1" />
+              <Button size="sm" variant="outline" onClick={() => navigate("/services")}>
+                <Plus className="w-4 h-4 mr-1" /> Nowy serwis
               </Button>
             </div>
-
-            {upcomingServices.length === 0 ? (
-              <div className="text-center py-12">
-                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <p className="text-theme-white-muted">Brak planowanych serwisów</p>
+            {services.length === 0 ? (
+              <div className="text-center py-8">
+                <Wrench className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                <p className="text-theme-white-secondary">Brak serwisów</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {upcomingServices.map((service) => {
-                  const serviceDate = service.date ? new Date(service.date) : null;
-                  const isTodayDate = serviceDate && isValid(serviceDate) ? isToday(serviceDate) : false;
-                  const isThisWeekDate = serviceDate && isValid(serviceDate) ? isThisWeek(serviceDate) : false;
-                  const daysLeft = serviceDate && isValid(serviceDate) ? Math.ceil((serviceDate - new Date()) / (1000 * 60 * 60 * 24)) : 0;
-                  
-                  return (
-                    <div
-                      key={service.id}
-                      className="p-3 rounded-lg bg-slate-800/50 border border-slate-700"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <Badge className={isTodayDate ? 'bg-red-500/20 text-red-400' : isThisWeekDate ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}>
-                          {isTodayDate ? 'Dzisiaj' : isThisWeekDate ? `Za ${daysLeft} dni` : serviceDate && isValid(serviceDate) ? format(serviceDate, 'dd MMM', { locale: pl }) : 'Brak daty'}
-                        </Badge>
-                        <span className="text-sm font-bold text-theme-white">
-                          {service.cost?.toFixed(2)} zł
-                        </span>
+              <div className="space-y-2">
+                {[...services]
+                  .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+                  .slice(0, 6)
+                  .map((s) => (
+                    <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-slate-700">
+                      <div>
+                        <p className="text-theme-white font-medium text-sm">
+                          {serviceTypeLabels[s.serviceType] || s.name || "Serwis"}
+                        </p>
+                        <p className="text-theme-white-muted text-xs">
+                          {getVehicleName(s.vehicleId)} •{" "}
+                          {s.date ? format(new Date(s.date), "dd MMM yyyy", { locale: pl }) : "---"}
+                        </p>
                       </div>
-                      <p className="text-theme-white font-medium">
-                        {getVehicleName(service.vehicleId)}
-                      </p>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-sm text-theme-white-muted">
-                          {serviceTypeLabels[service.type] || service.type}
+                      {s.cost && (
+                        <span className="text-theme-white font-semibold text-sm">
+                          {s.cost} zł
                         </span>
-                        {service.mileage && (
-                          <span className="text-xs text-theme-white-muted">
-                            Przebieg: {formatDistance(service.mileage)}
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             )}
           </GlassCard>
         </TabsContent>
 
-        {/* Zakładka: Pojazdy z niskim paliwem */}
-        <TabsContent value="low-fuel" className="mt-4">
+        {/* TANKOWANIA */}
+        <TabsContent value="fuel" className="mt-4">
           <GlassCard className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-theme-white font-semibold flex items-center gap-2">
-                <Battery className="w-5 h-5 text-yellow-400" />
-                Pojazdy z niskim poziomem paliwa
+                <Fuel className="w-4 h-4 text-green-400" />
+                Ostatnie tankowania
               </h3>
-              <Button variant="ghost" size="sm" onClick={goToVehicles}>
-                Wszystkie <ArrowRight className="w-4 h-4 ml-1" />
+              <Button size="sm" variant="outline" onClick={() => navigate("/refueling")}>
+                <Plus className="w-4 h-4 mr-1" /> Nowe tankowanie
               </Button>
             </div>
-
-            {lowFuelVehicles.length === 0 ? (
-              <div className="text-center py-12">
-                <Fuel className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <p className="text-theme-white-muted">Wszystkie pojazdy mają wystarczającą ilość paliwa</p>
+            {recentRefuelings.length === 0 ? (
+              <div className="text-center py-8">
+                <Fuel className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                <p className="text-theme-white-secondary">Brak tankowań</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {lowFuelVehicles.map((vehicle) => {
-                  const fuelPercent = ((vehicle.fuelLevel || 0) / (vehicle.tankCapacity || 60)) * 100;
-                  const getFuelColor = () => {
-                    if (fuelPercent < 10) return 'bg-red-500';
-                    if (fuelPercent < 20) return 'bg-yellow-500';
-                    return 'bg-green-500';
-                  };
+              <div className="space-y-2">
+                {recentRefuelings.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-slate-700">
+                    <div>
+                      <p className="text-theme-white font-medium text-sm">
+                        {getVehicleName(r.vehicleId)}
+                      </p>
+                      <p className="text-theme-white-muted text-xs">
+                        {r.date ? format(new Date(r.date), "dd MMM yyyy", { locale: pl }) : "---"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-theme-white font-semibold text-sm">
+                        {r.liters || 0} L
+                      </p>
+                      {r.cost && (
+                        <p className="text-theme-white-muted text-xs">{r.cost} zł</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </TabsContent>
 
+        {/* FLOTA */}
+        <TabsContent value="fleet" className="mt-4">
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-theme-white font-semibold flex items-center gap-2">
+                <Car className="w-4 h-4 text-blue-400" />
+                Pojazdy floty
+              </h3>
+              <Button size="sm" variant="outline" onClick={() => navigate("/vehicles")}>
+                Zarządzaj flotą
+              </Button>
+            </div>
+            {vehicles.length === 0 ? (
+              <div className="text-center py-8">
+                <Car className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                <p className="text-theme-white-secondary">Brak pojazdów</p>
+                <Button
+                  className="mt-3 bg-gradient-primary"
+                  size="sm"
+                  onClick={() => navigate("/vehicles")}
+                >
+                  Dodaj pojazd
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {vehicles.map((vehicle) => {
+                  const fuelPercent = vehicle.tankCapacity
+                    ? ((vehicle.fuelLevel || 0) / vehicle.tankCapacity) * 100
+                    : 0;
+                  const fuelColor =
+                    fuelPercent < 20
+                      ? "bg-red-500"
+                      : fuelPercent < 40
+                      ? "bg-yellow-500"
+                      : "bg-green-500";
                   return (
                     <div
                       key={vehicle.id}
-                      className="p-3 rounded-lg bg-slate-800/50 border border-slate-700"
+                      className="p-3 rounded-xl bg-slate-800/50 border border-slate-700 hover:border-slate-500 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/vehicles/${vehicle.id}`)}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <p className="text-theme-white font-medium">
-                            {vehicle.name || vehicle.make || 'Pojazd'}
+                          <p className="text-theme-white font-medium text-sm">
+                            {vehicle.name || vehicle.make || "Pojazd"}
                           </p>
                           <p className="text-xs text-theme-white-muted">
                             {vehicle.licensePlate || vehicle.registrationNumber}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-theme-white font-bold">
-                            {vehicle.fuelLevel || 0} L
-                          </p>
-                          <p className="text-xs text-theme-white-muted">
-                            / {vehicle.tankCapacity || 60} L
-                          </p>
-                        </div>
+                        <Badge
+                          className={`text-xs ${statusColors[vehicle.status] || "text-slate-400 bg-slate-400/10"}`}
+                        >
+                          {statusLabels[vehicle.status] || vehicle.status || "---"}
+                        </Badge>
                       </div>
-                      <div className="mt-2">
+                      <div>
                         <div className="flex justify-between text-xs text-theme-white-muted mb-1">
-                          <span>Poziom paliwa</span>
-                          <span>{Math.round(Math.min(100, fuelPercent))}%</span>
+                          <span>Paliwo</span>
+                          <span>
+                            {vehicle.fuelLevel || 0} / {vehicle.tankCapacity || 60} L (
+                            {Math.round(Math.min(100, fuelPercent))}%)
+                          </span>
                         </div>
-                        <Progress
-                          value={Math.min(100, fuelPercent)}
-                          className={`h-2 ${getFuelColor()}`}
-                        />
+                        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${fuelColor} rounded-full transition-all`}
+                            style={{ width: `${Math.min(100, fuelPercent)}%` }}
+                          />
+                        </div>
                       </div>
-                      {vehicle.fuelConsumption && (
-                        <div className="mt-2 text-xs text-theme-white-muted">
-                          Średnie spalanie: {vehicle.fuelConsumption} L/100km
-                        </div>
-                      )}
                     </div>
                   );
                 })}

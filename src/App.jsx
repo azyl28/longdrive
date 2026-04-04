@@ -3,7 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useLocation, Navigate, Outlet } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { AppSettingsProvider, useAppSettings } from '@/lib/ThemeContext';
@@ -16,26 +16,8 @@ const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-// Layout jest zamontowany raz – nie zmienia się przy nawigacji.
-const AppLayout = ({ children }) => {
-  const location = useLocation();
-  const getCurrentPageName = () => {
-    if (location.pathname === '/') return mainPageKey;
-    const pathSegment = location.pathname.replace(/^\//, '').split('/')[0];
-    const pageKeys = Object.keys(Pages);
-    const matchedKey = pageKeys.find(key => key.toLowerCase() === pathSegment.toLowerCase());
-    return matchedKey || null;
-  };
-
-  const currentPageName = getCurrentPageName();
-
-  if (Layout) {
-    return <Layout currentPageName={currentPageName}>{children}</Layout>;
-  }
-  return <>{children}</>;
-};
-
-const ProtectedRoute = ({ children }) => {
+// ProtectedRoute jako layout route
+const ProtectedRoute = () => {
   const { isAuthenticated, loading } = useAuth();
   if (loading) {
     return (
@@ -48,10 +30,29 @@ const ProtectedRoute = ({ children }) => {
       </motion.div>
     );
   }
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
-// Definicje animacji stron (tylko wejście)
+// AppLayout jako layout route
+const AppLayout = () => {
+  const location = useLocation();
+  const getCurrentPageName = () => {
+    if (location.pathname === '/') return mainPageKey;
+    const pathSegment = location.pathname.replace(/^\//, '').split('/')[0];
+    const pageKeys = Object.keys(Pages);
+    const matchedKey = pageKeys.find(key => key.toLowerCase() === pathSegment.toLowerCase());
+    return matchedKey || null;
+  };
+
+  const currentPageName = getCurrentPageName();
+
+  if (Layout) {
+    return <Layout currentPageName={currentPageName}><Outlet /></Layout>;
+  }
+  return <Outlet />;
+};
+
+// Definicje animacji stron
 const getAnimationVariants = (type) => {
   switch(type) {
     case 'fade':
@@ -76,16 +77,19 @@ const getAnimationVariants = (type) => {
 };
 
 // Komponent animacji ładowania po zmianie ustawień
-const SettingsRefreshAnimation = ({ settingsChanged }) => {
+const SettingsRefreshAnimation = ({ settingsChanged, onComplete }) => {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
     if (settingsChanged) {
       setShow(true);
-      const timer = setTimeout(() => setShow(false), 800);
+      const timer = setTimeout(() => {
+        setShow(false);
+        if (onComplete) onComplete();
+      }, 1200);
       return () => clearTimeout(timer);
     }
-  }, [settingsChanged]);
+  }, [settingsChanged, onComplete]);
 
   if (!show) return null;
 
@@ -108,7 +112,7 @@ const SettingsRefreshAnimation = ({ settingsChanged }) => {
           transition={{ delay: 0.2 }}
           className="text-white text-lg font-medium"
         >
-          Aktualizuję ustawienia...
+          Zapisywanie ustawień...
         </motion.p>
         <motion.div 
           initial={{ width: 0 }}
@@ -122,11 +126,12 @@ const SettingsRefreshAnimation = ({ settingsChanged }) => {
 };
 
 // Komponent animujący strony
-const AnimatedPage = ({ children }) => {
+const AnimatedPage = () => {
   const location = useLocation();
   const { settings } = useAppSettings();
   const [settingsChanged, setSettingsChanged] = useState(false);
   const [prevSettings, setPrevSettings] = useState(settings);
+  const [shouldRefresh, setShouldRefresh] = useState(false);
 
   useEffect(() => {
     if (JSON.stringify(prevSettings) !== JSON.stringify(settings)) {
@@ -136,12 +141,21 @@ const AnimatedPage = ({ children }) => {
     }
   }, [settings, prevSettings]);
 
+  const handleAnimationComplete = () => {
+    if (shouldRefresh) {
+      window.location.reload();
+    }
+  };
+
   const variants = getAnimationVariants(settings.animationType);
   const pageKey = location.pathname + location.search + (settingsChanged ? '-refresh' : '');
 
   return (
     <>
-      <SettingsRefreshAnimation settingsChanged={settingsChanged} />
+      <SettingsRefreshAnimation 
+        settingsChanged={settingsChanged} 
+        onComplete={handleAnimationComplete}
+      />
       <motion.div
         key={pageKey}
         variants={variants}
@@ -150,13 +164,13 @@ const AnimatedPage = ({ children }) => {
         transition={{ duration: settings.animationSpeed, ease: "easeInOut" }}
         className="w-full h-full"
       >
-        {children}
+        <Outlet />
       </motion.div>
     </>
   );
 };
 
-// Główny komponent App - poprawiona struktura routingu
+// Główny komponent App - POPRAWIONA struktura routingu
 function App() {
   return (
     <AuthProvider>
@@ -169,34 +183,27 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               
-              {/* Chronione trasy - wszystkie pod jednym wzorcem */}
-              <Route path="/*" element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <AnimatedPage>
-                      <Routes>
-                        <Route path="/" element={<MainPage />} />
-                        {Object.entries(Pages).map(([path, Page]) => {
-                          // Obsługa specjalnych ścieżek (np. map, trip-detail)
-                          let routePath = `/${path}`;
-                          // Jeśli to TripDetail, dodaj dynamiczny parametr :id
-                          if (path === 'TripDetail') {
-                            routePath = '/trips/:id';
-                          }
-                          return (
-                            <Route 
-                              key={path} 
-                              path={routePath} 
-                              element={<Page />} 
-                            />
-                          );
-                        })}
-                        <Route path="*" element={<PageNotFound />} />
-                      </Routes>
-                    </AnimatedPage>
-                  </AppLayout>
-                </ProtectedRoute>
-              } />
+              {/* Chronione trasy - użycie Outlet zamiast zagnieżdżonych Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route element={<AppLayout />}>
+                  <Route element={<AnimatedPage />}>
+                    <Route path="/" element={<MainPage />} />
+                    <Route path="/dashboard" element={<Pages.Dashboard />} />
+                    <Route path="/drivers" element={<Pages.Drivers />} />
+                    <Route path="/keys" element={<Pages.Keys />} />
+                    <Route path="/services" element={<Pages.Services />} />
+                    <Route path="/settings" element={<Pages.Settings />} />
+                    <Route path="/statistics" element={<Pages.Statistics />} />
+                    <Route path="/trips" element={<Pages.Trips />} />
+                    <Route path="/vehicles" element={<Pages.Vehicles />} />
+                    <Route path="/trips/:id" element={<Pages.TripDetail />} />
+                    <Route path="/calculators" element={<Pages.Calculators />} />
+                    <Route path="/refueling" element={<Pages.Refueling />} />
+                    <Route path="/map" element={<Pages.MapPage />} />
+                    <Route path="*" element={<PageNotFound />} />
+                  </Route>
+                </Route>
+              </Route>
             </Routes>
           </Router>
           <Toaster />

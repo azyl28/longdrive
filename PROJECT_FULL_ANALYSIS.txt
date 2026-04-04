@@ -49,6 +49,7 @@ src\components\ui\popover.jsx
 src\components\ui\progress.jsx
 src\components\ui\radio-group.jsx
 src\components\ui\resizable.jsx
+src\components\ui\SaveButton.jsx
 src\components\ui\scroll-area.jsx
 src\components\ui\SearchBar.jsx
 src\components\ui\select.jsx
@@ -110,6 +111,7 @@ src\pages\Statistics.jsx
 src\pages\TripDetail.jsx
 src\pages\Trips.jsx
 src\pages\Vehicles.jsx
+src\pages\WeatherWidget.jsx
 src\pages.config.js
 src\types\map.ts
 src\utils\index.ts
@@ -195,9 +197,10 @@ const getCurrentPageName = () =>
 const matchedKey = pageKeys.find(key =>
 const ProtectedRoute = ({ children }) =>
 const getAnimationVariants = (type) =>
-const SettingsRefreshAnimation = ({ settingsChanged }) =>
+const SettingsRefreshAnimation = ({ settingsChanged, onComplete }) =>
 const timer = setTimeout(() =>
 const AnimatedPage = ({ children }) =>
+const handleAnimationComplete = () =>
 function App
 
 --- IMPORTY ---
@@ -272,32 +275,29 @@ PLIK: src\components\calendar\CalendarWidget.jsx
 CalendarWidget
 
 --- FUNKCJE ---
+const getEventTypeConfig = (type) =>
+const buildMonthDays = (date) =>
+const checkReminders = (events) =>
+const reminders = events.filter((e) =>
 const saveCustomEvents = (events) =>
 const events = useMemo(() =>
-const tripEvents = trips.map(trip =>
-const serviceEvents = services.map(service =>
-const refuelingEvents = refuelings.map(refueling =>
-const custom = customEvents.map(event =>
+const tripEvents = trips.map((trip) =>
+const serviceEvents = services.map((service) =>
+const refuelingEvents = refuelings.map((refueling) =>
+const custom = customEvents.map((e) =>
 const monthDays = useMemo(() =>
-const selectedEvents = useMemo(() =>
+const getEventsForDay = (day) =>
 const prevMonth = () =>
 const nextMonth = () =>
 const goToToday = () =>
 const handleDayClick = (day) =>
 const handleAddEvent = () =>
 const handleSaveEvent = () =>
-const updatedEvents = customEvents.map(e =>
+const updated = customEvents.map((e) =>
 const handleEditEvent = (event) =>
 const handleDeleteEvent = (eventId) =>
-const updatedEvents = customEvents.filter(e =>
-const handleEventClick = (event) =>
-const getEventIcon = (type, size = 12) =>
-const option = eventTypeOptions.find(opt =>
-const getEventTypeName = (type) =>
-const option = eventTypeOptions.find(opt =>
-const getEventColor = (type) =>
-const option = eventTypeOptions.find(opt =>
-const formatEventDate = (date, time) =>
+const updated = customEvents.filter((e) =>
+const getEventDotColor = (type) =>
 
 --- IMPORTY ---
 react
@@ -308,10 +308,8 @@ framer-motion
 @/components/ui/input
 @/components/ui/label
 @/components/ui/textarea
-@/components/ui/select
 date-fns
 date-fns/locale
-@/lib/calendarUtils
 sonner
 
 --- ZALEŻNOŚCI WEWNĘTRZNE ---
@@ -321,46 +319,46 @@ sonner
 export default CalendarWidget;
 
 --- SKRÓT LOGIKI ---
-import React,  from 'react';
-import  from 'framer-motion';
-import  from 'lucide-react';
-import GlassCard from '@/components/ui/GlassCard';
-import  from '@/components/ui/button';
-import  from '@/components/ui/badge';
-import  from '@/components/ui/input';
-import  from '@/components/ui/label';
-import  from '@/components/ui/textarea';
-import  from '@/components/ui/select';
-import  from 'date-fns';
-import  from 'date-fns/locale';
-import  from '@/lib/calendarUtils';
-import  from 'sonner';
-const STORAGE_KEY = 'calendar_events';
-const CalendarWidget = () => );
-  const eventTypeOptions = [
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-  ];
+import React,  from "react";
+import  from "framer-motion";
+import  from "lucide-react";
+import GlassCard from "@/components/ui/GlassCard";
+import  from "@/components/ui/button";
+import  from "@/components/ui/badge";
+import  from "@/components/ui/input";
+import  from "@/components/ui/label";
+import  from "@/components/ui/textarea";
+import  from "@/components/ui/select";
+import  from "date-fns";
+import  from "date-fns/locale";
+import  from "sonner";
+const STORAGE_KEY = "calendar_events";
+const eventTypeOptions = [
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+];
+const getEventTypeConfig = (type) =>
+  eventTypeOptions.find((o) => o.id === type) || eventTypeOptions[eventTypeOptions.length - 1];
+const buildMonthDays = (date) => );
   useEffect(() =>  catch (e) 
     }
   }, []);
-  const saveCustomEvents = (events) => ;
+  const checkReminders = (events) => ;
   const events = useMemo(() => `,
-      type: 'trip',
+      type: "trip",
       title: `$ → $`,
       date: trip.startDate,
       endDate: trip.endDate,
       vehicleId: trip.vehicleId,
-      driverId: trip.driverId,
       details: trip,
       isCustom: false,
     }));
-    const serviceEvents = services.map(service => (`,
+    const serviceEvents = services.map((service) => (`,
 
 ====================================
 
@@ -2531,6 +2529,7 @@ function PageHeader
 --- IMPORTY ---
 react
 framer-motion
+./button
 
 --- ZALEŻNOŚCI WEWNĘTRZNE ---
 brak
@@ -2541,6 +2540,7 @@ export default function PageHeader({
 --- SKRÓT LOGIKI ---
 import React from "react";
 import  from "framer-motion";
+import  from "./button";
 export default function PageHeader() 
           )}
       )}
@@ -2745,6 +2745,49 @@ const ResizableHandle = () => (
     >
 )
 export 
+
+====================================
+
+====================================
+PLIK: src\components\ui\SaveButton.jsx
+
+--- KOMPONENTY ---
+brak
+
+--- FUNKCJE ---
+function SaveButton
+const handleClick = async () =>
+
+--- IMPORTY ---
+react
+./button
+lucide-react
+
+--- ZALEŻNOŚCI WEWNĘTRZNE ---
+brak
+
+--- EXPORTY ---
+export default function SaveButton({
+
+--- SKRÓT LOGIKI ---
+import React,  from 'react';
+import  from './button';
+import  from 'lucide-react';
+export default function SaveButton() );
+        });
+      }
+      if (onSuccess) onSuccess();
+      setTimeout(() => setIsSuccess(false), 2000);
+    } catch (error)  finally 
+  };
+  if (isSuccess) 
+    );
+  }
+  return (
+      ) : (
+      )}
+  );
+}
 
 ====================================
 
@@ -4285,12 +4328,15 @@ brak
 
 --- FUNKCJE ---
 function Layout
+const loadModules = () =>
+const navItems = allNavItems.filter((item) =>
 const handleLogout = () =>
+const isActive = (page) =>
+const getPageUrl = (page) =>
 
 --- IMPORTY ---
 react
 react-router-dom
-./utils
 framer-motion
 @/components/ui/button
 @/components/ui/avatar
@@ -4306,14 +4352,13 @@ export default function Layout({ children, currentPageName }) {
 --- SKRÓT LOGIKI ---
 import React,  from "react";
 import  from "react-router-dom";
-import  from "./utils";
 import  from "framer-motion";
 import  from "lucide-react";
 import  from "@/components/ui/button";
 import  from "@/components/ui/avatar";
 import  from "@/lib/ThemeContext";
 import  from "@/lib/AuthContext";
-const navItems = [
+const allNavItems = [
   ,
   ,
   ,
@@ -4326,24 +4371,25 @@ const navItems = [
   ,
   ,
 ];
-export default function Layout()  = useAppSettings();
+export default function Layout() );
+  const  = useAppSettings();
   const  = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  useEffect(() =>  catch (e) 
+      }
+    };
+    loadModules();
+    window.addEventListener("storage", loadModules);
+    window.addEventListener("modulesSettingsChanged", loadModules);
+    return () => ;
+  }, []);
+  const navItems = allNavItems.filter((item) => );
   const handleLogout = () => ;
-  return (
-            LongDrive
-           setSidebarOpen(!sidebarOpen)}
-            className="text-theme-white-secondary hover:text-theme-white"
-          >
-        }
-            exit=}
-            transition=}
-            className=`}
-          >
-                  LongDrive
-                  Zarządzanie Flotą
-                    >
+  const isActive = (page) => `);
+  };
+  const getPageUrl = (page) => `;
+  };
 
 ====================================
 
@@ -5141,34 +5187,25 @@ brak
 --- FUNKCJE ---
 const safeFormatDistanceToNow = (date) =>
 function Dashboard
+const loadSettings = () =>
 const stats = useMemo(() =>
-const availableVehicles = vehicles.filter(v =>
-const inUseVehicles = vehicles.filter(v =>
-const maintenanceVehicles = vehicles.filter(v =>
-const activeTrips = trips.filter(t =>
-const completedTrips = trips.filter(t =>
+const availableVehicles = vehicles.filter((v) =>
+const inUseVehicles = vehicles.filter((v) =>
+const maintenanceVehicles = vehicles.filter((v) =>
+const activeTrips = trips.filter((t) =>
+const completedTrips = trips.filter((t) =>
 const totalMileage = vehicles.reduce((sum, v) =>
 const totalServiceCost = services.reduce((sum, s) =>
 const totalFuelCost = refuelings.reduce((sum, r) =>
 const recentTrips = useMemo(() =>
 const upcomingServices = useMemo(() =>
 const recentRefuelings = useMemo(() =>
-const lowFuelVehicles = useMemo(() =>
-const activeTripsList = useMemo(() =>
-const goToTrips = () =>
-const goToVehicles = () =>
-const goToServices = () =>
-const goToRefueling = () =>
-const goToMap = () =>
-const goToTripDetail = (tripId) =>
 const getVehicleName = (id) =>
-const vehicle = vehicles.find(v =>
+const v = vehicles.find((v) =>
 const getDriverName = (id) =>
-const driver = drivers.find(d =>
+const d = drivers.find((d) =>
 const formatDate = (date) =>
 const formatDistance = (km) =>
-const vehicle = vehicles.find(v =>
-const getFuelColor = () =>
 
 --- IMPORTY ---
 react
@@ -5212,10 +5249,10 @@ import  from "@/components/ui/tabs";
 import WeatherWidget from "@/components/weather/WeatherWidget";
 import CalendarWidget from "@/components/calendar/CalendarWidget";
 import api from "@/api/apiClient";
-import  from '@/lib/ThemeContext';
-import  from '@/lib/AuthContext';
-import  from 'date-fns';
-import  from 'date-fns/locale';
+import  from "@/lib/ThemeContext";
+import  from "@/lib/AuthContext";
+import  from "date-fns";
+import  from "date-fns/locale";
 const serviceTypeLabels = ;
 const statusColors = ;
 const statusLabels = ;
@@ -5225,7 +5262,8 @@ const safeFormatDistanceToNow = (date) => );
 };
 export default function Dashboard()  = useAppSettings();
   const  = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState("overview");
+  const [modulesSettings, setModulesSettings] = useState();
   const  = useQuery();
   const  = useQuery();
   const  = useQuery();
@@ -5235,8 +5273,7 @@ export default function Dashboard()  = useAppSettings();
   });
   const [apiSettings, setApiSettings] = useState();
   useEffect(() =>  catch (e) 
-    }
-  }, []);
+      }
 
 ====================================
 
@@ -5479,13 +5516,19 @@ brak
 
 --- FUNKCJE ---
 function MapPage
-const activeTrips = trips.filter(t =>
+const activeTrips = trips.filter((t) =>
 const getVehicleName = (id) =>
-const vehicle = vehicles.find(v =>
+const vehicle = vehicles.find((v) =>
 const getRouteColor = (vehicleId) =>
-const vehicle = vehicles.find(v =>
+const vehicle = vehicles.find((v) =>
 const toggleFullscreen = () =>
 const handleFullscreenChange = () =>
+const getUserLocation = () =>
+const openInGoogleMaps = (from, to) =>
+const saveRoute = () =>
+const deleteRoute = (id) =>
+const updated = savedRoutes.filter((r) =>
+const viewRouteOnGoogle = (route) =>
 
 --- IMPORTY ---
 react
@@ -5495,18 +5538,20 @@ framer-motion
 @/components/ui/GlassCard
 @/components/ui/button
 @/components/ui/badge
+@/components/ui/input
+@/components/ui/label
 @/components/ui/tabs
 @/components/ui/switch
-@/components/ui/label
 @/components/maps/MapView
 @/components/maps/GPSLiveTracker
-@/components/maps/TripHistoryMap
-@/components/maps/LocationSearch
 @/api/apiClient
 @/lib/ThemeContext
+sonner
+date-fns
+date-fns/locale
 
 --- ZALEŻNOŚCI WEWNĘTRZNE ---
-brak
+sonner
 
 --- EXPORTY ---
 export default function MapPage() {
@@ -5520,15 +5565,18 @@ import PageHeader from "@/components/ui/PageHeader";
 import GlassCard from "@/components/ui/GlassCard";
 import  from "@/components/ui/button";
 import  from "@/components/ui/badge";
+import  from "@/components/ui/input";
+import  from "@/components/ui/label";
 import  from "@/components/ui/tabs";
 import  from "@/components/ui/switch";
-import  from "@/components/ui/label";
 import MapView from "@/components/maps/MapView";
 import GPSLiveTracker from "@/components/maps/GPSLiveTracker";
-import TripHistoryMap from "@/components/maps/TripHistoryMap";
-import LocationSearch from "@/components/maps/LocationSearch";
 import api from "@/api/apiClient";
-import  from '@/lib/ThemeContext';
+import  from "@/lib/ThemeContext";
+import  from "sonner";
+import  from "date-fns";
+import  from "date-fns/locale";
+const SAVED_ROUTES_KEY = "saved_map_routes";
 export default function MapPage()  = useAppSettings();
   const [activeTab, setActiveTab] = useState("live");
   const [fullscreen, setFullscreen] = useState(false);
@@ -5539,19 +5587,16 @@ export default function MapPage()  = useAppSettings();
   const [showLiveTracking, setShowLiveTracking] = useState(true);
   const [showRouteMarkers, setShowRouteMarkers] = useState(true);
   const [autoCenter, setAutoCenter] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [routeFrom, setRouteFrom] = useState("");
+  const [routeTo, setRouteTo] = useState("");
+  const [routeName, setRouteName] = useState("");
+  const [savedRoutes, setSavedRoutes] = useState([]);
+  const [selectedSavedRoute, setSelectedSavedRoute] = useState(null);
+  const [showRouteForm, setShowRouteForm] = useState(false);
   const  = useQuery();
-  const  = useQuery();
-  const  = useQuery();
-  const  = useQuery();
-  const [mapSettings, setMapSettings] = useState(
-  });
-  useEffect(() =>  catch (e) 
-    }
-  }, []);
-  const activeTrips = trips.filter(t => t.status === 'in_progress');
-  const getVehicleName = (id) =>  ($)` : 'Nieznany';
-  };
-  const getRouteColor = (vehicleId) => 
 
 ====================================
 
@@ -5584,6 +5629,7 @@ lucide-react
 @/components/ui/input
 @/components/ui/label
 @/components/ui/textarea
+@/components/ui/SaveButton
 @/components/ui/use-toast
 @/api/apiClient
 
@@ -5606,6 +5652,7 @@ import  from "@/components/ui/input";
 import  from "@/components/ui/label";
 import  from "@/components/ui/textarea";
 import  from "@/components/ui/select";
+import SaveButton from "@/components/ui/SaveButton";
 import  from "@/components/ui/use-toast";
 import api from "@/api/apiClient";
 const voivodeships = [
@@ -5633,7 +5680,6 @@ export default function Refueling()  = useToast();
       return;
     }
     setLoadingPrices(true);
-    try 
 
 ====================================
 
@@ -5890,25 +5936,24 @@ const backgrounds = [
 PLIK: src\pages\Settings.jsx
 
 --- KOMPONENTY ---
-brak
+SaveAnimation
 
 --- FUNKCJE ---
+const SaveAnimation = ({ show }) =>
 function SettingsPage
+const triggerSaveAnimation = () =>
 const saveModulesSettings = () =>
 const saveLocationAndMapSettings = () =>
 const saveApiSettings = () =>
-const testApiConnections = async () =>
-const toggleDebug = (enabled) =>
+const handleSave = async () =>
+const toggleDebug = async () =>
 const refreshLogs = async () =>
 const downloadLogs = async () =>
 const clearLogs = async () =>
 const handleChangePassword = async () =>
-const handleResetPasswordRequest = async () =>
-const filteredLogs = logFilter === 'all' ? logs : logs.filter(log =>
 const handleExportBackup = async () =>
-const handleImportBackup = (event) =>
+const handleImportBackup = async (e) =>
 const handleReset = async () =>
-const handleSave = async () =>
 
 --- IMPORTY ---
 react
@@ -5935,7 +5980,7 @@ sonner
 --- EXPORTY ---
 export default function SettingsPage() {
     const exportData = logger.export();
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
         exportDate: new Date().toISOString(),
 
 --- SKRÓT LOGIKI ---
@@ -5954,8 +5999,8 @@ import  from "@/components/ui/avatar";
 import  from "@/components/ui/switch";
 import  from "@/components/ui/slider";
 import  from "@/components/ui/select";
-import  from '@/lib/ThemeContext';
-import  from '@/lib/AuthContext';
+import  from "@/lib/ThemeContext";
+import  from "@/lib/AuthContext";
 import  from "sonner";
 import api from "@/api/apiClient";
 const themes = [
@@ -6332,6 +6377,76 @@ export default function Vehicles() );
   const deleteMutation = useMutation();
     }
   });
+
+====================================
+
+====================================
+PLIK: src\pages\WeatherWidget.jsx
+
+--- KOMPONENTY ---
+WeatherWidget
+
+--- FUNKCJE ---
+const getWeatherIcon = (iconCode, size = 8) =>
+const getWeatherDescription = (description) =>
+const formatTemp = (temp) =>
+
+--- IMPORTY ---
+react
+framer-motion
+@/components/ui/GlassCard
+@/components/ui/button
+@/hooks/useWeather
+date-fns
+date-fns/locale
+
+--- ZALEŻNOŚCI WEWNĘTRZNE ---
+brak
+
+--- EXPORTY ---
+export default WeatherWidget;
+
+--- SKRÓT LOGIKI ---
+import React,  from 'react';
+import  from 'framer-motion';
+import  from 'lucide-react';
+import GlassCard from '@/components/ui/GlassCard';
+import  from '@/components/ui/button';
+import  from '@/hooks/useWeather';
+import  from 'date-fns';
+import  from 'date-fns/locale';
+const WeatherWidget = () =>  = useWeather(
+    location,
+    apiKey,
+    autoRefresh
+  );
+  useEffect(() => 
+  }, [currentWeather]);
+  const getWeatherIcon = (iconCode, size = 8) =>  h-$`;
+    const iconMap = ;
+    return iconMap[iconCode] || ;
+  };
+  const getWeatherDescription = (description) => ;
+    const lower = description.toLowerCase();
+    return descMap[lower] || description;
+  };
+  const formatTemp = (temp) =>
+    temp !== undefined && temp !== null ? `$°C` : '---';
+  if (loading && !currentWeather) 
+  if (error) 
+    );
+  }
+  if (!currentWeather) ,
+              ,
+              ,
+              ,
+            ].map(() => (
+            ))}
+    );
+  }
+  return (
+          Pogoda
+              `}
 
 ====================================
 

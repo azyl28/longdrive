@@ -87,8 +87,6 @@ export default function TripDetail() {
     ? companySettings 
     : (Array.isArray(companySettings) && companySettings[0]) || {};
 
-  console.log('TripDetail - pobrane ustawienia firmy:', settings);
-
   const trip = useMemo(() => trips.find(t => t.id === tripId), [trips, tripId]);
   const vehicle = useMemo(() => trip ? vehicles.find(v => v.id === trip.vehicleId) : null, [vehicles, trip]);
   const driver = useMemo(() => trip ? drivers.find(d => d.id === trip.driverId) : null, [drivers, trip]);
@@ -270,7 +268,7 @@ export default function TripDetail() {
     }
   };
 
-  // ✅ POPRAWIENA FUNKCJA GENEROWANIA PDF
+  // POPRAWIENA FUNKCJA GENEROWANIA PDF - BEZ PRZESUNIĘCIA
   const generateSinglePdf = async (docType, fmt) => {
     setIsGeneratingPdf(true);
     setPdfFormat(fmt);
@@ -292,26 +290,33 @@ export default function TripDetail() {
       const originalLeft = element.style.left;
       const originalWidth = element.style.width;
       const originalBackground = element.style.backgroundColor;
+      const originalTransform = element.style.transform;
       
-      // Przygotuj element do renderowania
+      // Przygotuj element do renderowania - WYŚRODKOWANIE
       element.style.display = 'block';
       element.style.position = 'absolute';
-      element.style.top = '-9999px';
-      element.style.left = '-9999px';
+      element.style.top = '0';
+      element.style.left = '0';
       element.style.width = fmt === 'A5' ? '148mm' : '210mm';
       element.style.backgroundColor = 'white';
+      element.style.transform = 'none';
+      element.style.margin = '0 auto';
       
       document.body.appendChild(element);
       
       await new Promise(r => setTimeout(r, 300));
       
       const canvas = await html2canvas(element, { 
-        scale: 2.5, 
+        scale: 3, 
         useCORS: true, 
         backgroundColor: '#ffffff',
         logging: false,
         windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
+        windowHeight: element.scrollHeight,
+        onclone: (clonedDoc, element) => {
+          // Wymuś poprawne style w klonie
+          element.style.transform = 'none';
+        }
       });
       
       // Przywróć oryginalne style
@@ -321,6 +326,7 @@ export default function TripDetail() {
       element.style.left = originalLeft;
       element.style.width = originalWidth;
       element.style.backgroundColor = originalBackground;
+      element.style.transform = originalTransform;
       
       if (canvas.width === 0 || canvas.height === 0) {
         throw new Error('Canvas ma zerowe wymiary');
@@ -329,17 +335,19 @@ export default function TripDetail() {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: fmt });
       const pw = pdf.internal.pageSize.getWidth();
       const ph = pdf.internal.pageSize.getHeight();
-      const margin = 5;
       
-      const imgWidth = pw - (margin * 2);
+      // Oblicz proporcje - WYŚRODKOWANIE POZIOME
+      const imgWidth = pw;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      let yPosition = margin;
-      if (imgHeight < ph - (margin * 2)) {
+      // Wyśrodkuj w pionie
+      let yPosition = 0;
+      if (imgHeight < ph) {
         yPosition = (ph - imgHeight) / 2;
       }
       
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, yPosition, imgWidth, imgHeight, undefined, 'FAST');
+      // DODAJ OBRAZ BEZ PRZESUNIĘCIA (offsetY = 0)
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, yPosition, imgWidth, imgHeight, undefined, 'FAST');
       pdf.save(`${docType === 'karta' ? 'karta_drogowa' : 'polecenie_wyjazdu'}_${trip?.tripNumber || String(trip?.id).slice(-5) || 'dokument'}_${fmt}.pdf`);
     } catch (err) {
       console.error('Błąd generowania PDF:', err);
@@ -349,7 +357,7 @@ export default function TripDetail() {
     }
   };
 
-  // ✅ POPRAWIENA FUNKCJA GENEROWANIA OBU PDF
+  // POPRAWIENA FUNKCJA GENEROWANIA OBU PDF
   const generateBothPdf = async (fmt) => {
     setIsGeneratingPdf(true);
     setPdfFormat(fmt);
@@ -381,14 +389,16 @@ export default function TripDetail() {
           top: el.style.top,
           left: el.style.left,
           width: el.style.width,
-          background: el.style.backgroundColor
+          background: el.style.backgroundColor,
+          transform: el.style.transform
         });
         el.style.display = 'block';
         el.style.position = 'absolute';
-        el.style.top = '-9999px';
-        el.style.left = '-9999px';
+        el.style.top = '0';
+        el.style.left = '0';
         el.style.width = pageWidth;
         el.style.backgroundColor = 'white';
+        el.style.transform = 'none';
         document.body.appendChild(el);
       });
       
@@ -396,7 +406,7 @@ export default function TripDetail() {
       
       const canvases = await Promise.all(elements.map(({ el }) =>
         html2canvas(el, { 
-          scale: 2.5, 
+          scale: 3, 
           useCORS: true, 
           backgroundColor: '#ffffff',
           logging: false,
@@ -406,19 +416,19 @@ export default function TripDetail() {
       ));
       
       // Przywróć oryginalne style
-      originalStyles.forEach(({ el, display, position, top, left, width, background }) => {
+      originalStyles.forEach(({ el, display, position, top, left, width, background, transform }) => {
         el.style.display = display;
         el.style.position = position;
         el.style.top = top;
         el.style.left = left;
         el.style.width = width;
         el.style.backgroundColor = background;
+        el.style.transform = transform;
       });
       
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: fmt });
       const pw = pdf.internal.pageSize.getWidth();
       const ph = pdf.internal.pageSize.getHeight();
-      const margin = 5;
       
       const addPage = (canvas, addNew) => {
         if (addNew) pdf.addPage();
@@ -428,15 +438,15 @@ export default function TripDetail() {
           return;
         }
         
-        const imgWidth = pw - (margin * 2);
+        const imgWidth = pw;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
         
-        let yPosition = margin;
-        if (imgHeight < ph - (margin * 2)) {
+        let yPosition = 0;
+        if (imgHeight < ph) {
           yPosition = (ph - imgHeight) / 2;
         }
         
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, yPosition, imgWidth, imgHeight, undefined, 'FAST');
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, yPosition, imgWidth, imgHeight, undefined, 'FAST');
       };
       
       addPage(canvases[0], false);
@@ -474,8 +484,20 @@ export default function TripDetail() {
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      {/* Ukryte elementy do druku */}
-      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', visibility: 'hidden' }}>
+      {/* Ukryte elementy do druku - PRAWIDŁOWO UKRYTE */}
+      <div 
+        style={{ 
+          position: 'fixed', 
+          top: '-9999px', 
+          left: '-9999px', 
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          height: 0,
+          width: 0,
+          overflow: 'hidden'
+        }}
+        aria-hidden="true"
+      >
         <div id="karta-drogowa-print">
           <KartaDrogowa
             trip={{
@@ -571,6 +593,7 @@ export default function TripDetail() {
         ))}
       </div>
 
+      {/* reszta komponentu bez zmian... */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Panel boczny */}
         <div className="lg:col-span-1 space-y-6">
@@ -625,7 +648,7 @@ export default function TripDetail() {
             )}
           </div>
 
-          {/* Panel podsumowania */}
+          {/* reszta panelu bocznego */}
           <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-6">
             {trip.status === 'in_progress' && !showEndForm && (
               <div className="mb-6">

@@ -1,3 +1,4 @@
+// src/pages/Refueling.jsx
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -15,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import SaveButton from "@/components/ui/SaveButton";
 import { useToast } from "@/components/ui/use-toast";
 import api from "@/api/apiClient";
 
@@ -26,7 +28,7 @@ const voivodeships = [
   "ŚWIĘTOKRZYSKIE", "WARMIŃSKO-MAZURSKIE", "WIELKOPOLSKIE", "ZACHODNIOPOMORSKIE"
 ];
 
-// Klucz API CollectAPI
+// Klucz API CollectAPI (w produkcji przenieś do .env!)
 const COLLECT_API_KEY = "apikey 3DVClldFLIRO4LSaryQwFw:6bNkoLjBB56fEpMEx66nzr";
 
 export default function Refueling() {
@@ -253,6 +255,8 @@ export default function Refueling() {
     }
   };
 
+  const isSaving = mutation.isPending;
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -356,7 +360,7 @@ export default function Refueling() {
                   <th className="pb-3 font-medium">Faktura</th>
                   <th className="pb-3 font-medium">Uwagi</th>
                   <th className="pb-3 font-medium">Akcje</th>
-                 </tr>
+                </tr>
               </thead>
               <tbody className="text-sm">
                 {sortedRefuels.map((refuel, index) => {
@@ -433,7 +437,7 @@ export default function Refueling() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="date">Data</Label>
+                  <Label>Data</Label>
                   <Input
                     type="date"
                     name="date"
@@ -462,7 +466,7 @@ export default function Refueling() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="liters">Ilość (l) *</Label>
+                  <Label>Ilość (l) *</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -473,7 +477,7 @@ export default function Refueling() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cost">Koszt (zł) *</Label>
+                  <Label>Koszt (zł) *</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -487,7 +491,7 @@ export default function Refueling() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="mileage">Przebieg (km)</Label>
+                  <Label>Przebieg (km)</Label>
                   <Input
                     type="number"
                     name="mileage"
@@ -496,7 +500,7 @@ export default function Refueling() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="invoiceNumber">Numer faktury</Label>
+                  <Label>Numer faktury</Label>
                   <Input
                     type="text"
                     name="invoiceNumber"
@@ -507,7 +511,7 @@ export default function Refueling() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Uwagi</Label>
+                <Label>Uwagi</Label>
                 <Textarea
                   name="notes"
                   defaultValue={editingRefuel?.notes}
@@ -531,9 +535,37 @@ export default function Refueling() {
               <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
                 Anuluj
               </Button>
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
-                {editingRefuel ? 'Zapisz zmiany' : 'Dodaj tankowanie'}
-              </Button>
+              <SaveButton
+                onSave={() => {
+                  const formDataElem = document.querySelector('form');
+                  if (formDataElem) {
+                    const formDataObj = new FormData(formDataElem);
+                    const data = {
+                      vehicleId: selectedVehicleId,
+                      date: formDataObj.get('date'),
+                      liters: formDataObj.get('liters'),
+                      cost: formDataObj.get('cost'),
+                      mileage: formDataObj.get('mileage'),
+                      invoiceNumber: formDataObj.get('invoiceNumber'),
+                      notes: formDataObj.get('notes'),
+                      fullTank: formDataObj.get('fullTank') === 'on',
+                    };
+                    if (editingRefuel) {
+                      data.id = editingRefuel.id;
+                    }
+                    return mutation.mutateAsync(data);
+                  }
+                  return Promise.reject(new Error('Formularz nie znaleziony'));
+                }}
+                text={editingRefuel ? 'Zapisz zmiany' : 'Dodaj tankowanie'}
+                savingText="Zapisywanie..."
+                successText={editingRefuel ? 'Zapisano!' : 'Dodano!'}
+                variant="default"
+                className="bg-gradient-to-r from-emerald-500 to-teal-500"
+                queryClient={queryClient}
+                invalidateQueries={[['refuels'], ['vehicles']]}
+                disabled={isSaving}
+              />
             </DialogFooter>
           </form>
         </DialogContent>
