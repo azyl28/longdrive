@@ -1,7 +1,7 @@
 // src/api/apiClient.js
 import { logApi } from '@/lib/errorHandler';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://longdrive-backend.onrender.com/api';
 
 const getToken = () => localStorage.getItem('token');
 const setToken = (token) => {
