@@ -14,7 +14,7 @@ services:
           name: longdrive-db
           property: connectionString
 
-  - type: static
+  - type: web
     name: longdrive-frontend
     runtime: static
     buildCommand: npm install && npm run build
