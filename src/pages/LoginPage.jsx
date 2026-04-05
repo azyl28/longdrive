@@ -42,6 +42,15 @@ const LoginPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
       <Card className="w-full max-w-md bg-slate-800 border-slate-700">
         <CardHeader className="text-center">
+          {/* ========== LOGO ========== */}
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/logo.png" 
+              alt="LongDrive Logo" 
+              className="h-40 w-auto object-contain"
+            />
+          </div>
+          {/* ========================= */}
           <CardTitle className="text-2xl text-white">Logowanie</CardTitle>
           <CardDescription className="text-slate-400">
             Wprowadź email i hasło, aby się zalogować

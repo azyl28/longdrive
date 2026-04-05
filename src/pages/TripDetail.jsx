@@ -268,15 +268,16 @@ export default function TripDetail() {
     }
   };
 
-  // POPRAWIENA FUNKCJA GENEROWANIA PDF - BEZ PRZESUNIĘCIA
+  // 🔧 POPRAWIENA FUNKCJA GENEROWANIA PDF - BEZ ZAKŁÓCANIA INTERFEJSU
   const generateSinglePdf = async (docType, fmt) => {
     setIsGeneratingPdf(true);
     setPdfFormat(fmt);
     try {
       const { default: html2canvas } = await import('html2canvas');
       const { jsPDF } = await import('jspdf');
-      const elementId = docType === 'karta' ? 'karta-drogowa-print' : 'polecenie-wyjazdu-print';
-      let element = document.getElementById(elementId);
+      
+      // 🔧 UŻYWAMY REF ZAMIAST getElementById
+      const element = docType === 'karta' ? kartaRef.current : polecenieRef.current;
       
       if (!element) { 
         alert('Nie znaleziono dokumentu'); 
@@ -284,49 +285,34 @@ export default function TripDetail() {
       }
       
       // Zapisz oryginalne style
-      const originalDisplay = element.style.display;
       const originalPosition = element.style.position;
       const originalTop = element.style.top;
       const originalLeft = element.style.left;
       const originalWidth = element.style.width;
       const originalBackground = element.style.backgroundColor;
-      const originalTransform = element.style.transform;
       
-      // Przygotuj element do renderowania - WYŚRODKOWANIE
-      element.style.display = 'block';
-      element.style.position = 'absolute';
-      element.style.top = '0';
-      element.style.left = '0';
+      // TYMCZASOWE PRZYGOTOWANIE DO RENDEROWANIA - BEZ WPŁYWU NA INTERFEJS
+      element.style.position = 'fixed';
+      element.style.top = '-9999px';
+      element.style.left = '-9999px';
       element.style.width = fmt === 'A5' ? '148mm' : '210mm';
       element.style.backgroundColor = 'white';
-      element.style.transform = 'none';
-      element.style.margin = '0 auto';
       
-      document.body.appendChild(element);
-      
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 100));
       
       const canvas = await html2canvas(element, { 
         scale: 3, 
         useCORS: true, 
         backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-        onclone: (clonedDoc, element) => {
-          // Wymuś poprawne style w klonie
-          element.style.transform = 'none';
-        }
+        logging: false
       });
       
       // Przywróć oryginalne style
-      element.style.display = originalDisplay;
       element.style.position = originalPosition;
       element.style.top = originalTop;
       element.style.left = originalLeft;
       element.style.width = originalWidth;
       element.style.backgroundColor = originalBackground;
-      element.style.transform = originalTransform;
       
       if (canvas.width === 0 || canvas.height === 0) {
         throw new Error('Canvas ma zerowe wymiary');
@@ -336,17 +322,14 @@ export default function TripDetail() {
       const pw = pdf.internal.pageSize.getWidth();
       const ph = pdf.internal.pageSize.getHeight();
       
-      // Oblicz proporcje - WYŚRODKOWANIE POZIOME
       const imgWidth = pw;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      // Wyśrodkuj w pionie
       let yPosition = 0;
       if (imgHeight < ph) {
         yPosition = (ph - imgHeight) / 2;
       }
       
-      // DODAJ OBRAZ BEZ PRZESUNIĘCIA (offsetY = 0)
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, yPosition, imgWidth, imgHeight, undefined, 'FAST');
       pdf.save(`${docType === 'karta' ? 'karta_drogowa' : 'polecenie_wyjazdu'}_${trip?.tripNumber || String(trip?.id).slice(-5) || 'dokument'}_${fmt}.pdf`);
     } catch (err) {
@@ -357,73 +340,56 @@ export default function TripDetail() {
     }
   };
 
-  // POPRAWIENA FUNKCJA GENEROWANIA OBU PDF
+  // 🔧 POPRAWIENA FUNKCJA GENEROWANIA OBU PDF
   const generateBothPdf = async (fmt) => {
     setIsGeneratingPdf(true);
     setPdfFormat(fmt);
     try {
       const { default: html2canvas } = await import('html2canvas');
       const { jsPDF } = await import('jspdf');
-      let kartaEl = document.getElementById('karta-drogowa-print');
-      let polecenieEl = document.getElementById('polecenie-wyjazdu-print');
       
-      if (!kartaEl || !polecenieEl) { 
+      const kartaElement = kartaRef.current;
+      const polecenieElement = polecenieRef.current;
+      
+      if (!kartaElement || !polecenieElement) { 
         alert('Nie znaleziono dokumentów'); 
         return; 
       }
       
       // Zapisz oryginalne style dla obu elementów
-      const elements = [
-        { el: kartaEl, name: 'karta' },
-        { el: polecenieEl, name: 'polecenie' }
+      const originalStyles = [
+        { el: kartaElement, position: kartaElement.style.position, top: kartaElement.style.top, left: kartaElement.style.left, width: kartaElement.style.width, background: kartaElement.style.backgroundColor },
+        { el: polecenieElement, position: polecenieElement.style.position, top: polecenieElement.style.top, left: polecenieElement.style.left, width: polecenieElement.style.width, background: polecenieElement.style.backgroundColor }
       ];
       
-      const originalStyles = [];
       const pageWidth = fmt === 'A5' ? '148mm' : '210mm';
       
-      elements.forEach(({ el }) => {
-        originalStyles.push({
-          el,
-          display: el.style.display,
-          position: el.style.position,
-          top: el.style.top,
-          left: el.style.left,
-          width: el.style.width,
-          background: el.style.backgroundColor,
-          transform: el.style.transform
-        });
-        el.style.display = 'block';
-        el.style.position = 'absolute';
-        el.style.top = '0';
-        el.style.left = '0';
-        el.style.width = pageWidth;
-        el.style.backgroundColor = 'white';
-        el.style.transform = 'none';
-        document.body.appendChild(el);
-      });
+      kartaElement.style.position = 'fixed';
+      kartaElement.style.top = '-9999px';
+      kartaElement.style.left = '-9999px';
+      kartaElement.style.width = pageWidth;
+      kartaElement.style.backgroundColor = 'white';
       
-      await new Promise(r => setTimeout(r, 300));
+      polecenieElement.style.position = 'fixed';
+      polecenieElement.style.top = '-9999px';
+      polecenieElement.style.left = '-9999px';
+      polecenieElement.style.width = pageWidth;
+      polecenieElement.style.backgroundColor = 'white';
       
-      const canvases = await Promise.all(elements.map(({ el }) =>
-        html2canvas(el, { 
-          scale: 3, 
-          useCORS: true, 
-          backgroundColor: '#ffffff',
-          logging: false,
-          windowWidth: el.scrollWidth,
-          windowHeight: el.scrollHeight
-        })
-      ));
+      await new Promise(r => setTimeout(r, 100));
+      
+      const canvases = await Promise.all([
+        html2canvas(kartaElement, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false }),
+        html2canvas(polecenieElement, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false })
+      ]);
       
       // Przywróć oryginalne style
-      originalStyles.forEach(({ el, display, position, top, left, width, background, transform }) => {
-        el.style.display = display;
+      originalStyles.forEach(({ el, position, top, left, width, background }) => {
         el.style.position = position;
         el.style.top = top;
         el.style.left = left;
         el.style.width = width;
         el.style.backgroundColor = background;
-        el.style.transform = transform;
       });
       
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: fmt });
@@ -484,78 +450,8 @@ export default function TripDetail() {
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      {/* Ukryte elementy do druku - PRAWIDŁOWO UKRYTE */}
-      <div 
-        style={{ 
-          position: 'fixed', 
-          top: '-9999px', 
-          left: '-9999px', 
-          visibility: 'hidden',
-          pointerEvents: 'none',
-          height: 0,
-          width: 0,
-          overflow: 'hidden'
-        }}
-        aria-hidden="true"
-      >
-        <div id="karta-drogowa-print">
-          <KartaDrogowa
-            trip={{
-              ...trip,
-              departureDate,
-              departureTime,
-              orderedBy,
-              purpose,
-              startLocation,
-              endLocation,
-              startOdometer,
-              startFuel,
-              endOdometer,
-              endFuel,
-              fuelAdded,
-              fuelReceiptNumber,
-              fuelStation,
-              fuelCost,
-              returnDate,
-              returnTime,
-            }}
-            vehicle={vehicle}
-            driver={driver}
-            company={settings}
-            endMileage={endOdometer}
-            endFuel={endFuel}
-            fuelAdded={fuelAdded}
-            format={pdfFormat}
-          />
-        </div>
-        <div id="polecenie-wyjazdu-print">
-          <PolecenieWyjazdu
-            trip={{
-              ...trip,
-              departureDate,
-              departureTime,
-              orderedBy,
-              purpose,
-              startLocation,
-              endLocation,
-              startOdometer,
-              startFuel,
-              endOdometer,
-              endFuel,
-              fuelAdded,
-              fuelReceiptNumber,
-              fuelStation,
-              fuelCost,
-              returnDate,
-              returnTime,
-            }}
-            vehicle={vehicle}
-            driver={driver}
-            company={settings}
-            format={pdfFormat}
-          />
-        </div>
-      </div>
+      {/* 🔧 NAPRAWA: Ukryte elementy NIE SĄ już renderowane jako fixed - używamy REF zamiast ID */}
+      {/* Usunąłem div z position fixed który powodował problemy */}
 
       {/* Nagłówek */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -593,7 +489,7 @@ export default function TripDetail() {
         ))}
       </div>
 
-      {/* reszta komponentu bez zmian... */}
+      {/* reszta komponentu */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Panel boczny */}
         <div className="lg:col-span-1 space-y-6">
@@ -648,7 +544,7 @@ export default function TripDetail() {
             )}
           </div>
 
-          {/* reszta panelu bocznego */}
+          {/* reszta panelu bocznego - bez zmian */}
           <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-6">
             {trip.status === 'in_progress' && !showEndForm && (
               <div className="mb-6">
@@ -1053,6 +949,7 @@ export default function TripDetail() {
                 <div>
                   <div className="mb-8 pb-4 border-b border-gray-300">
                     <KartaDrogowa
+                      ref={kartaRef}
                       trip={{
                         ...trip,
                         departureDate,
@@ -1083,6 +980,7 @@ export default function TripDetail() {
                   </div>
                   <div className="mt-4 pt-4 border-t border-gray-300">
                     <PolecenieWyjazdu
+                      ref={polecenieRef}
                       trip={{
                         ...trip,
                         departureDate,

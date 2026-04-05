@@ -11,7 +11,8 @@ import {
   Edit,
   Trash2,
   User,
-  CreditCard
+  CreditCard,
+  AlertCircle
 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import GlassCard from "@/components/ui/GlassCard";
@@ -39,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import api from "@/api/apiClient";
 
 const statusConfig = {
@@ -76,16 +78,37 @@ export default function Drivers() {
     name: `${driver.firstName} ${driver.lastName}`
   }));
 
+  // Funkcja sprawdzająca duplikat emaila
+  const isEmailDuplicate = (email, currentDriverId = null) => {
+    if (!email) return false;
+    return drivers.some(driver => 
+      driver.email?.toLowerCase() === email.toLowerCase() &&
+      driver.id !== currentDriverId
+    );
+  };
+
+  // 🔧 POPRAWIONA: Sprawdza duplikat numeru prawa jazdy (pomija puste wartości)
+  const isLicenseNumberDuplicate = (licenseNumber, currentDriverId = null) => {
+    // Jeśli numer jest pusty, nie sprawdzamy duplikatu
+    if (!licenseNumber || licenseNumber.trim() === '') return false;
+    
+    return drivers.some(driver => 
+      driver.licenseNumber && 
+      driver.licenseNumber.toLowerCase() === licenseNumber.toLowerCase() &&
+      driver.id !== currentDriverId
+    );
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // Przygotuj payload dla API (firstName, lastName, itd.)
+      // 🔧 POPRAWA: Jeśli licenseNumber jest pusty, wyślij null zamiast pustego stringa
       const payload = {
         firstName: data.firstName,
         lastName: data.lastName,
-        phone: data.phone,
-        email: data.email,
-        licenseNumber: data.licenseNumber,
-        licenseExpiry: data.licenseExpiry,
+        phone: data.phone || null,
+        email: data.email || null,
+        licenseNumber: data.licenseNumber && data.licenseNumber.trim() !== '' ? data.licenseNumber : null,
+        licenseExpiry: data.licenseExpiry || null,
         status: data.status
       };
       return api.createDriver(payload);
@@ -94,18 +117,37 @@ export default function Drivers() {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       setIsDialogOpen(false);
       resetForm();
+      toast.success('Kierowca został dodany pomyślnie');
+    },
+    onError: (error) => {
+      console.error('Błąd dodawania kierowcy:', error);
+      
+      const errorMessage = error.message || '';
+      
+      if (errorMessage.includes('numerem prawa jazdy już istnieje')) {
+        toast.error('Podaj unikalny numer prawa jazdy lub pozostaw pole puste');
+      } else if (errorMessage.includes('409') || errorMessage.includes('Conflict')) {
+        toast.error('Konflikt danych: kierowca o podanych danych już istnieje');
+      } else if (errorMessage.includes('email już istnieje')) {
+        toast.error('Kierowca z tym adresem email już istnieje w systemie');
+      } else if (errorMessage.includes('400')) {
+        toast.error('Nieprawidłowe dane kierowcy. Sprawdź poprawność wszystkich pól.');
+      } else {
+        toast.error(`Nie udało się dodać kierowcy: ${errorMessage || 'Błąd serwera'}`);
+      }
     }
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }) => {
+      // 🔧 POPRAWA: Jeśli licenseNumber jest pusty, wyślij null zamiast pustego stringa
       const payload = {
         firstName: data.firstName,
         lastName: data.lastName,
-        phone: data.phone,
-        email: data.email,
-        licenseNumber: data.licenseNumber,
-        licenseExpiry: data.licenseExpiry,
+        phone: data.phone || null,
+        email: data.email || null,
+        licenseNumber: data.licenseNumber && data.licenseNumber.trim() !== '' ? data.licenseNumber : null,
+        licenseExpiry: data.licenseExpiry || null,
         status: data.status
       };
       return api.updateDriver(id, payload);
@@ -114,6 +156,20 @@ export default function Drivers() {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       setIsDialogOpen(false);
       resetForm();
+      toast.success('Dane kierowcy zostały zaktualizowane');
+    },
+    onError: (error) => {
+      console.error('Błąd aktualizacji kierowcy:', error);
+      
+      const errorMessage = error.message || '';
+      
+      if (errorMessage.includes('numerem prawa jazdy już istnieje')) {
+        toast.error('Podaj unikalny numer prawa jazdy lub pozostaw pole puste');
+      } else if (errorMessage.includes('409') || errorMessage.includes('Conflict')) {
+        toast.error('Konflikt danych: kierowca o podanych danych już istnieje');
+      } else {
+        toast.error(`Nie udało się zaktualizować danych: ${errorMessage || 'Błąd serwera'}`);
+      }
     }
   });
 
@@ -121,6 +177,11 @@ export default function Drivers() {
     mutationFn: api.deleteDriver,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      toast.success('Kierowca został usunięty');
+    },
+    onError: (error) => {
+      console.error('Błąd usuwania kierowcy:', error);
+      toast.error('Nie udało się usunąć kierowcy. Sprawdź czy nie ma przypisanych tras.');
     }
   });
 
@@ -153,6 +214,31 @@ export default function Drivers() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Walidacja przed wysłaniem
+    if (!formData.firstName.trim()) {
+      toast.error('Imię jest wymagane');
+      return;
+    }
+    
+    if (!formData.lastName.trim()) {
+      toast.error('Nazwisko jest wymagane');
+      return;
+    }
+    
+    // Sprawdź duplikat emaila przed wysłaniem (tylko jeśli email został podany)
+    if (formData.email && isEmailDuplicate(formData.email, editingDriver?.id)) {
+      toast.error('Kierowca z tym adresem email już istnieje w systemie');
+      return;
+    }
+    
+    // 🔧 POPRAWA: Sprawdź duplikat numeru prawa jazdy tylko jeśli został podany
+    if (formData.licenseNumber && formData.licenseNumber.trim() !== '' && 
+        isLicenseNumberDuplicate(formData.licenseNumber, editingDriver?.id)) {
+      toast.error('Kierowca z tym numerem prawa jazdy już istnieje w systemie');
+      return;
+    }
+    
     if (editingDriver) {
       updateMutation.mutate({ id: editingDriver.id, data: formData });
     } else {
@@ -261,7 +347,11 @@ export default function Drivers() {
                             Edytuj
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => deleteMutation.mutate(driver.id)}
+                            onClick={() => {
+                              if (confirm('Czy na pewno chcesz usunąć tego kierowcę?')) {
+                                deleteMutation.mutate(driver.id);
+                              }
+                            }}
                             className="text-red-400 hover:text-red-300 hover:bg-red-500/20"
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
@@ -315,7 +405,7 @@ export default function Drivers() {
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Imię</Label>
+                <Label>Imię *</Label>
                 <Input
                   value={formData.firstName}
                   onChange={(e) => setFormData({...formData, firstName: e.target.value})}
@@ -324,7 +414,7 @@ export default function Drivers() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Nazwisko</Label>
+                <Label>Nazwisko *</Label>
                 <Input
                   value={formData.lastName}
                   onChange={(e) => setFormData({...formData, lastName: e.target.value})}
@@ -361,7 +451,9 @@ export default function Drivers() {
                   value={formData.licenseNumber}
                   onChange={(e) => setFormData({...formData, licenseNumber: e.target.value})}
                   className="bg-slate-800 border-slate-700"
+                  placeholder="Opcjonalne - pozostaw puste jeśli brak"
                 />
+                <p className="text-xs text-slate-400">Pole opcjonalne - zostaw puste jeśli nie chcesz podawać</p>
               </div>
               <div className="space-y-2">
                 <Label>Ważność prawa jazdy</Label>
@@ -405,7 +497,14 @@ export default function Drivers() {
                 className="bg-gradient-to-r from-indigo-500 to-cyan-500"
                 disabled={createMutation.isPending || updateMutation.isPending}
               >
-                {editingDriver ? 'Zapisz zmiany' : 'Dodaj kierowcę'}
+                {(createMutation.isPending || updateMutation.isPending) ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    {editingDriver ? 'Zapisywanie...' : 'Dodawanie...'}
+                  </div>
+                ) : (
+                  editingDriver ? 'Zapisz zmiany' : 'Dodaj kierowcę'
+                )}
               </Button>
             </div>
           </form>

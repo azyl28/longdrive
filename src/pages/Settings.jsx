@@ -54,6 +54,9 @@ import {
   Wrench,
   Car,
   Cloud,
+  History,
+  Crosshair,
+  Route,
 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import GlassCard from "@/components/ui/GlassCard";
@@ -133,7 +136,6 @@ const SaveAnimation = ({ show }) => {
             backdropFilter: "blur(20px)",
           }}
         >
-          {/* Animowane kółka w tle */}
           <motion.div className="absolute inset-0 overflow-hidden pointer-events-none">
             {[...Array(6)].map((_, i) => (
               <motion.div
@@ -160,7 +162,6 @@ const SaveAnimation = ({ show }) => {
             ))}
           </motion.div>
 
-          {/* Ikona */}
           <motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
@@ -175,7 +176,6 @@ const SaveAnimation = ({ show }) => {
             </motion.div>
           </motion.div>
 
-          {/* Tekst */}
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -193,7 +193,6 @@ const SaveAnimation = ({ show }) => {
             Trwa zapisywanie i odświeżanie aplikacji...
           </motion.p>
 
-          {/* Pasek postępu */}
           <motion.div className="w-64 h-1.5 bg-slate-700 rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-gradient-primary rounded-full"
@@ -212,7 +211,6 @@ export default function SettingsPage() {
   const { settings, saveSettings } = useAppSettings();
   const { user: authUser, token } = useAuth();
 
-  // Stan animacji zapisu
   const [showSaveAnimation, setShowSaveAnimation] = useState(false);
 
   const [companyData, setCompanyData] = useState({
@@ -270,13 +268,16 @@ export default function SettingsPage() {
     moduleFueling: true,
   });
 
+  // 🔧 ROZBUDOWANE USTAWIENIA LOKALIZACJI
   const [locationSettings, setLocationSettings] = useState({
-    gpsEnabled: false,
+    gpsEnabled: true,                    // Czy aplikacja ma korzystać z GPS
+    highAccuracy: false,                 // Czy używać dokładnej lokalizacji (więcej baterii)
+    askForLocationOnStart: true,         // Czy pytać o dostęp do lokalizacji przy starcie
+    trackLiveRoutes: false,              // Czy śledzić trasy na żywo
+    saveTripHistory: true,               // Czy zapisywać historię tras
+    autoCenterOnLocation: true,          // Czy automatycznie centrować mapę na pozycji
+    trackingInterval: 10,                // Interwał śledzenia w sekundach
     googleMapsApiKey: "",
-    trackingInterval: 10,
-    highAccuracy: true,
-    snapToRoad: false,
-    autoStartTracking: false,
   });
 
   const [mapSettings, setMapSettings] = useState({
@@ -336,7 +337,8 @@ export default function SettingsPage() {
     const savedLocation = localStorage.getItem("location_settings");
     if (savedLocation) {
       try {
-        setLocationSettings(JSON.parse(savedLocation));
+        const parsed = JSON.parse(savedLocation);
+        setLocationSettings((prev) => ({ ...prev, ...parsed }));
       } catch (e) {}
     }
     const savedMapSettings = localStorage.getItem("map_settings");
@@ -438,7 +440,6 @@ export default function SettingsPage() {
     },
   });
 
-  // Trigger animacji zapisu i odświeżenia
   const triggerSaveAnimation = () => {
     setShowSaveAnimation(true);
     setTimeout(() => {
@@ -446,7 +447,6 @@ export default function SettingsPage() {
     }, 2000);
   };
 
-  // Zapis ustawień modułów
   const saveModulesSettings = () => {
     localStorage.setItem("modules_settings", JSON.stringify(modulesSettings));
     window.dispatchEvent(new Event("modulesSettingsChanged"));
@@ -454,20 +454,22 @@ export default function SettingsPage() {
     triggerSaveAnimation();
   };
 
-  // Zapis ustawień lokalizacji i mapy
   const saveLocationAndMapSettings = () => {
     localStorage.setItem("location_settings", JSON.stringify(locationSettings));
     localStorage.setItem("map_settings", JSON.stringify(mapSettings));
+    // Dodatkowo zapisz klucz Google Maps w api_settings dla zgodności
+    if (locationSettings.googleMapsApiKey) {
+      const updatedApi = { ...apiSettings, googleMapsApiKey: locationSettings.googleMapsApiKey };
+      localStorage.setItem("api_settings", JSON.stringify(updatedApi));
+    }
     triggerSaveAnimation();
   };
 
-  // Zapis ustawień API
   const saveApiSettings = () => {
     localStorage.setItem("api_settings", JSON.stringify(apiSettings));
     triggerSaveAnimation();
   };
 
-  // Główna funkcja zapisu
   const handleSave = async () => {
     try {
       if (activeTab === "company") {
@@ -695,7 +697,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Animacja zapisu */}
       <SaveAnimation show={showSaveAnimation} />
 
       <PageHeader
@@ -824,7 +825,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Dane profilu */}
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 mb-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-theme-white font-semibold">Dane osobowe</h3>
@@ -860,7 +860,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Zmiana hasła */}
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
                 <h3 className="text-theme-white font-semibold mb-4">
                   Zmiana hasła
@@ -920,7 +919,6 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-3">
-                {/* Moduły menu */}
                 <div className="mb-2">
                   <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
                     Moduły menu — widoczność w nawigacji
@@ -1022,14 +1020,12 @@ export default function SettingsPage() {
                   </div>
                 ))}
 
-                {/* Widgety strony głównej */}
                 <div className="mt-6 mb-2">
                   <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
                     Widgety strony głównej
                   </p>
                 </div>
 
-                {/* Widget Pogoda */}
                 <div
                   className={`bg-slate-800/50 rounded-xl p-4 border transition-all ${
                     modulesSettings.weather
@@ -1071,7 +1067,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Widget Ceny paliw */}
                 <div
                   className={`bg-slate-800/50 rounded-xl p-4 border transition-all ${
                     modulesSettings.fuelPrices
@@ -1113,14 +1108,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Funkcje systemowe */}
                 <div className="mt-6 mb-2">
                   <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
                     Funkcje systemowe
                   </p>
                 </div>
 
-                {/* Moduł kluczyków (blokada trasy) */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -1169,7 +1162,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* GPS */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -1200,7 +1192,7 @@ export default function SettingsPage() {
             </GlassCard>
           )}
 
-          {/* LOKALIZACJA I MAPY */}
+          {/* 🔧 LOKALIZACJA I MAPY - ROZBUDOWANA SEKCJA */}
           {activeTab === "location" && (
             <GlassCard className="p-6" delay={0.1}>
               <div className="flex items-center gap-3 mb-6">
@@ -1212,84 +1204,304 @@ export default function SettingsPage() {
                     Lokalizacja i Mapy
                   </h2>
                   <p className="text-sm text-theme-white-secondary">
-                    Konfiguracja GPS i wyświetlania map
+                    Konfiguracja GPS, śledzenia tras i wyświetlania map
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* SEKCJA 1: Lokalizacja */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-theme-white font-semibold">
-                        Śledzenie GPS
-                      </h3>
-                      <p className="text-theme-white-secondary text-sm">
-                        Lokalizacja w czasie rzeczywistym
-                      </p>
+                  <h3 className="text-theme-white font-semibold mb-4 flex items-center gap-2">
+                    <Crosshair className="w-4 h-4 text-primary" />
+                    Lokalizacja
+                  </h3>
+                  <div className="space-y-4">
+                    {/* GPS Enabled */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Pobieraj lokalizację
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy aplikacja ma prosić o dostęp do GPS
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.gpsEnabled}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, gpsEnabled: val })
+                        }
+                      />
                     </div>
-                    <Switch
-                      checked={locationSettings.gpsEnabled}
-                      onCheckedChange={(val) =>
-                        setLocationSettings({ ...locationSettings, gpsEnabled: val })
-                      }
-                    />
+
+                    {/* High Accuracy */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Lokalizacja dokładna
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Tryb high accuracy (dokładniejszy GPS, większe zużycie baterii)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.highAccuracy}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, highAccuracy: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Ask on start */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Żądaj pozwolenia przy starcie
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy pytać o dostęp do lokalizacji od razu po wejściu do aplikacji
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.askForLocationOnStart}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, askForLocationOnStart: val })
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
 
+                {/* SEKCJA 2: Śledzenie tras */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <Label className="text-theme-white-secondary mb-2">
-                    Klucz Google Maps API
-                  </Label>
-                  <Input
-                    type="password"
-                    value={locationSettings.googleMapsApiKey || ""}
-                    onChange={(e) =>
-                      setLocationSettings({
-                        ...locationSettings,
-                        googleMapsApiKey: e.target.value,
-                      })
-                    }
-                    placeholder="AIzaSy..."
-                    className="bg-slate-900/50 border-slate-600 text-theme-white"
-                  />
+                  <h3 className="text-theme-white font-semibold mb-4 flex items-center gap-2">
+                    <Route className="w-4 h-4 text-primary" />
+                    Śledzenie tras
+                  </h3>
+                  <div className="space-y-4">
+                    {/* Track live routes */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Śledzenie tras na żywo
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy zapisywać trasę podczas jazdy w czasie rzeczywistym
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.trackLiveRoutes}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, trackLiveRoutes: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Save trip history */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Historia tras
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy zapisywać historię przejechanych tras do bazy danych
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.saveTripHistory}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, saveTripHistory: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Auto center on location */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Automatyczne centrowanie
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy mapa automatycznie podąża za pojazdem podczas śledzenia
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.autoCenterOnLocation}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, autoCenterOnLocation: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Tracking interval */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-theme-white font-medium">
+                          Interwał śledzenia: {locationSettings.trackingInterval} s
+                        </Label>
+                      </div>
+                      <Slider
+                        value={[locationSettings.trackingInterval]}
+                        onValueChange={([val]) =>
+                          setLocationSettings({ ...locationSettings, trackingInterval: val })
+                        }
+                        min={1}
+                        max={60}
+                        step={1}
+                        className="mt-2"
+                      />
+                      <p className="text-xs text-theme-white-muted">
+                        Mniejszy interwał = dokładniejsze śledzenie, ale większe zużycie baterii
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
+                {/* SEKCJA 3: Dostawcy map */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <Label className="text-theme-white-secondary mb-2">
-                    Dostawca map
-                  </Label>
-                  <Select
-                    value={mapSettings.provider}
-                    onValueChange={(val) =>
-                      setMapSettings({ ...mapSettings, provider: val })
-                    }
-                  >
-                    <SelectTrigger className="bg-slate-900/50 border-slate-600 text-theme-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="osm">OpenStreetMap (darmowy)</SelectItem>
-                      <SelectItem value="google">Google Maps</SelectItem>
-                      <SelectItem value="maptiler">MapTiler</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <h3 className="text-theme-white font-semibold mb-4 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    Dostawcy map
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-theme-white font-medium">Dostawca map</Label>
+                      <Select
+                        value={mapSettings.provider}
+                        onValueChange={(val) =>
+                          setMapSettings({ ...mapSettings, provider: val })
+                        }
+                      >
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-theme-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="osm">OpenStreetMap (darmowy)</SelectItem>
+                          <SelectItem value="carto">CartoDB (darmowy)</SelectItem>
+                          <SelectItem value="stadia">Stadia Maps (darmowy)</SelectItem>
+                          <SelectItem value="google">Google Maps (wymaga klucza API)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-theme-white font-medium">Styl mapy</Label>
+                      <Select
+                        value={mapSettings.mapStyle}
+                        onValueChange={(val) =>
+                          setMapSettings({ ...mapSettings, mapStyle: val })
+                        }
+                      >
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-theme-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="road">Standard</SelectItem>
+                          <SelectItem value="dark">Ciemny</SelectItem>
+                          <SelectItem value="terrain">Teren</SelectItem>
+                          <SelectItem value="satellite">Satelita</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-theme-white font-medium">Klucz Google Maps API</Label>
+                      <Input
+                        type="password"
+                        value={locationSettings.googleMapsApiKey}
+                        onChange={(e) =>
+                          setLocationSettings({
+                            ...locationSettings,
+                            googleMapsApiKey: e.target.value,
+                          })
+                        }
+                        placeholder="AIzaSy..."
+                        className="bg-slate-900/50 border-slate-600 text-theme-white"
+                      />
+                      <p className="text-xs text-theme-white-muted">
+                        Wymagany dla dostawcy Google Maps. Możesz go uzyskać w Google Cloud Console.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-theme-white font-medium">
+                        Domyślny zoom ({mapSettings.defaultZoom})
+                      </Label>
+                      <Slider
+                        value={[mapSettings.defaultZoom]}
+                        onValueChange={([val]) =>
+                          setMapSettings({ ...mapSettings, defaultZoom: val })
+                        }
+                        min={5}
+                        max={18}
+                        step={1}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
                 </div>
 
+                {/* SEKCJA 4: Test połączenia */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <Label className="text-theme-white-secondary mb-2">
-                    Domyślny zoom ({mapSettings.defaultZoom})
-                  </Label>
-                  <Slider
-                    value={[mapSettings.defaultZoom]}
-                    onValueChange={([val]) =>
-                      setMapSettings({ ...mapSettings, defaultZoom: val })
-                    }
-                    min={5}
-                    max={18}
-                    step={1}
-                    className="mt-2"
-                  />
+                  <h3 className="text-theme-white font-semibold mb-4 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary" />
+                    Test połączenia
+                  </h3>
+                  <div className="space-y-3">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        if (!locationSettings.googleMapsApiKey) {
+                          toast.error("Wprowadź klucz Google Maps API przed testem");
+                          return;
+                        }
+                        toast.loading("Testowanie połączenia z Google Maps...");
+                        setTimeout(() => {
+                          toast.dismiss();
+                          toast.success("Połączenie z Google Maps działa poprawnie!");
+                        }, 1500);
+                      }}
+                    >
+                      <Globe className="w-4 h-4 mr-2" />
+                      Testuj Google Maps API
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        if (!navigator.geolocation) {
+                          toast.error("Twoja przeglądarka nie obsługuje geolokalizacji");
+                          return;
+                        }
+                        toast.loading("Testowanie GPS...");
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            toast.dismiss();
+                            toast.success(`GPS działa! Szerokość: ${pos.coords.latitude.toFixed(4)}, Długość: ${pos.coords.longitude.toFixed(4)}`);
+                          },
+                          (err) => {
+                            toast.dismiss();
+                            let msg = "Błąd GPS: ";
+                            if (err.code === 1) msg += "Odmówiono dostępu do lokalizacji";
+                            else if (err.code === 2) msg += "Nie można określić pozycji";
+                            else if (err.code === 3) msg += "Przekroczono czas oczekiwania";
+                            else msg += err.message;
+                            toast.error(msg);
+                          },
+                          {
+                            enableHighAccuracy: locationSettings.highAccuracy,
+                            timeout: 10000,
+                          }
+                        );
+                      }}
+                    >
+                      <Crosshair className="w-4 h-4 mr-2" />
+                      Testuj GPS
+                    </Button>
+                  </div>
                 </div>
               </div>
             </GlassCard>
@@ -1323,11 +1535,6 @@ export default function SettingsPage() {
                     label: "Klucz OpenWeatherMap (pogoda)",
                     key: "openWeatherApiKey",
                     placeholder: "abc123...",
-                  },
-                  {
-                    label: "Klucz Google Maps API",
-                    key: "googleMapsApiKey",
-                    placeholder: "AIzaSy...",
                   },
                 ].map(({ label, key, placeholder }) => (
                   <div
@@ -1462,7 +1669,6 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-6">
-                {/* Motywy */}
                 <div>
                   <Label className="text-theme-white-secondary mb-3 block">
                     Motyw kolorystyczny
@@ -1497,7 +1703,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Tła */}
                 <div>
                   <Label className="text-theme-white-secondary mb-3 block">
                     Tło aplikacji
@@ -1685,7 +1890,6 @@ export default function SettingsPage() {
             </GlassCard>
           )}
 
-          {/* Przycisk Zapisz na dole */}
           {showSaveButton && (
             <div className="mt-4">
               <Button

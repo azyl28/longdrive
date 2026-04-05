@@ -25,7 +25,6 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 
-// Klucz przechowywania zapisanych tras
 const SAVED_ROUTES_KEY = "saved_map_routes";
 
 export default function MapPage() {
@@ -36,7 +35,40 @@ export default function MapPage() {
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [mapView, setMapView] = useState("road");
   const [mapProvider, setMapProvider] = useState("osm");
-  const [showLiveTracking, setShowLiveTracking] = useState(true);
+
+  // 🔧 ODCZYT USTAWIEŃ Z localStorage
+  const [locationSettings, setLocationSettings] = useState({
+    gpsEnabled: true,
+    highAccuracy: false,
+    askForLocationOnStart: true,
+    trackLiveRoutes: false,
+    saveTripHistory: true,
+    autoCenterOnLocation: true,
+    trackingInterval: 10,
+    googleMapsApiKey: "",
+  });
+
+  const [mapSettings, setMapSettings] = useState({
+    provider: "osm",
+    mapStyle: "road",
+    defaultZoom: 12,
+    autoCenter: true,
+    showMarkers: true,
+    showStops: true,
+    showTraffic: false,
+    saveHistory: true,
+    historyRetention: "90",
+    routeColors: {
+      car: "#3b82f6",
+      truck: "#ef4444",
+      van: "#10b981",
+      bus: "#8b5cf6",
+      motorcycle: "#f59e0b",
+    },
+  });
+
+  // Stan lokalny dla przełączników (zgodny z ustawieniami)
+  const [showLiveTracking, setShowLiveTracking] = useState(false);
   const [showRouteMarkers, setShowRouteMarkers] = useState(true);
   const [autoCenter, setAutoCenter] = useState(true);
 
@@ -44,6 +76,7 @@ export default function MapPage() {
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState(null);
+  const [hasAskedForPermission, setHasAskedForPermission] = useState(false);
 
   // Planowanie trasy
   const [routeFrom, setRouteFrom] = useState("");
@@ -68,33 +101,28 @@ export default function MapPage() {
     queryFn: api.getTrips,
   });
 
-  const [mapSettings, setMapSettings] = useState({
-    provider: "osm",
-    mapStyle: "road",
-    defaultZoom: 12,
-    autoCenter: true,
-    showMarkers: true,
-    showStops: true,
-    showTraffic: false,
-    saveHistory: true,
-    historyRetention: "90",
-    routeColors: {
-      car: "#3b82f6",
-      truck: "#ef4444",
-      van: "#10b981",
-      bus: "#8b5cf6",
-      motorcycle: "#f59e0b",
-    },
-  });
-
+  // Wczytaj ustawienia z localStorage
   useEffect(() => {
+    const savedLocation = localStorage.getItem("location_settings");
+    if (savedLocation) {
+      try {
+        const parsed = JSON.parse(savedLocation);
+        setLocationSettings(prev => ({ ...prev, ...parsed }));
+        setShowLiveTracking(parsed.trackLiveRoutes || false);
+        setAutoCenter(parsed.autoCenterOnLocation !== false);
+      } catch (e) {}
+    }
     const savedMapSettings = localStorage.getItem("map_settings");
     if (savedMapSettings) {
       try {
-        setMapSettings(JSON.parse(savedMapSettings));
+        const parsed = JSON.parse(savedMapSettings);
+        setMapSettings(prev => ({ ...prev, ...parsed }));
+        setMapProvider(parsed.provider || "osm");
+        setMapView(parsed.mapStyle || "road");
+        setAutoCenter(parsed.autoCenter !== false);
+        setShowRouteMarkers(parsed.showMarkers !== false);
       } catch (e) {}
     }
-    // Wczytaj zapisane trasy
     const saved = localStorage.getItem(SAVED_ROUTES_KEY);
     if (saved) {
       try {
@@ -103,11 +131,18 @@ export default function MapPage() {
     }
   }, []);
 
+  // 🔧 AUTOMATYCZNE PROSZENIE O LOKALIZACJĘ PRZY STARCIE (jeśli ustawione)
+  useEffect(() => {
+    if (locationSettings.askForLocationOnStart && locationSettings.gpsEnabled && !hasAskedForPermission && !userLocation) {
+      getUserLocation();
+    }
+  }, [locationSettings.askForLocationOnStart, locationSettings.gpsEnabled]);
+
   const activeTrips = trips.filter((t) => t.status === "in_progress");
 
   const getVehicleName = (id) => {
     const vehicle = vehicles.find((v) => v.id === id);
-    return vehicle ? `${vehicle.name} (${vehicle.licensePlate})` : "Nieznany";
+    return vehicle ? `${vehicle.name || vehicle.brand || ""} (${vehicle.licensePlate || ""})` : "Nieznany";
   };
 
   const getRouteColor = (vehicleId) => {
@@ -150,14 +185,20 @@ export default function MapPage() {
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  // Pobierz lokalizację użytkownika
+  // 🔧 POBIERANIE LOKALIZACJI z uwzględnieniem ustawień dokładności
   const getUserLocation = () => {
+    if (!locationSettings.gpsEnabled) {
+      setLocationError("Śledzenie GPS jest wyłączone w ustawieniach");
+      return;
+    }
     if (!navigator.geolocation) {
       setLocationError("Twoja przeglądarka nie obsługuje geolokalizacji");
       return;
     }
     setLocationLoading(true);
     setLocationError(null);
+    setHasAskedForPermission(true);
+    
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const loc = {
@@ -170,6 +211,20 @@ export default function MapPage() {
         toast.success(
           `Lokalizacja pobrana! Dokładność: ${Math.round(loc.accuracy)} m`
         );
+        
+        // Zapisz do historii jeśli ustawione
+        if (locationSettings.saveTripHistory) {
+          const historyPoint = {
+            ...loc,
+            timestamp: new Date().toISOString(),
+            type: "user_location",
+          };
+          const existingHistory = localStorage.getItem("location_history");
+          const history = existingHistory ? JSON.parse(existingHistory) : [];
+          history.unshift(historyPoint);
+          if (history.length > 100) history.pop();
+          localStorage.setItem("location_history", JSON.stringify(history));
+        }
       },
       (err) => {
         setLocationLoading(false);
@@ -181,11 +236,14 @@ export default function MapPage() {
         setLocationError(messages[err.code] || "Błąd lokalizacji");
         toast.error(messages[err.code] || "Błąd lokalizacji");
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { 
+        enableHighAccuracy: locationSettings.highAccuracy, 
+        timeout: 10000, 
+        maximumAge: 0 
+      }
     );
   };
 
-  // Otwórz trasę w Google Maps
   const openInGoogleMaps = (from, to) => {
     if (!from || !to) {
       toast.error("Podaj adres startowy i docelowy");
@@ -195,7 +253,6 @@ export default function MapPage() {
     window.open(url, "_blank");
   };
 
-  // Zapisz trasę
   const saveRoute = () => {
     if (!routeFrom || !routeTo) {
       toast.error("Podaj adres startowy i docelowy");
@@ -218,7 +275,6 @@ export default function MapPage() {
     toast.success("Trasa zapisana!");
   };
 
-  // Usuń trasę
   const deleteRoute = (id) => {
     const updated = savedRoutes.filter((r) => r.id !== id);
     setSavedRoutes(updated);
@@ -227,7 +283,6 @@ export default function MapPage() {
     toast.success("Trasa usunięta");
   };
 
-  // Wyświetl szczegóły trasy na mapie Google
   const viewRouteOnGoogle = (route) => {
     openInGoogleMaps(route.from, route.to);
   };
@@ -246,7 +301,6 @@ export default function MapPage() {
           className={`${showSidebar ? "lg:w-80" : "lg:w-12"} transition-all duration-300 flex-shrink-0`}
         >
           <GlassCard className="p-0 overflow-hidden">
-            {/* Nagłówek panelu */}
             <div className="flex items-center justify-between p-3 border-b border-slate-700">
               {showSidebar ? (
                 <>
@@ -301,6 +355,18 @@ export default function MapPage() {
 
                   {/* Zakładka: Śledzenie na żywo */}
                   <TabsContent value="live" className="mt-3 space-y-4">
+                    {/* Komunikat jeśli GPS wyłączony */}
+                    {!locationSettings.gpsEnabled && (
+                      <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/30">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-400" />
+                          <p className="text-amber-400 text-xs">
+                            Śledzenie GPS jest wyłączone. Włącz je w zakładce "Lokalizacja i Mapy" w ustawieniach.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Lokalizacja użytkownika */}
                     <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700">
                       <h4 className="text-theme-white text-sm font-semibold mb-2 flex items-center gap-2">
@@ -333,7 +399,7 @@ export default function MapPage() {
                         size="sm"
                         className="w-full bg-gradient-primary text-xs"
                         onClick={getUserLocation}
-                        disabled={locationLoading}
+                        disabled={locationLoading || !locationSettings.gpsEnabled}
                       >
                         {locationLoading ? (
                           <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -348,31 +414,41 @@ export default function MapPage() {
                       </Button>
                     </div>
 
-                    {/* GPS Live Tracker */}
-                    <GPSLiveTracker
-                      vehicle={
-                        activeTrips[0]?.vehicleId
-                          ? vehicles.find((v) => v.id === activeTrips[0].vehicleId)
-                          : null
-                      }
-                      autoTrack={showLiveTracking}
-                      highAccuracy={true}
-                      onLocationUpdate={(pos) => {
-                        if (pos) setUserLocation({ lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy || 0 });
-                      }}
-                    />
+                    {/* GPS Live Tracker - tylko jeśli śledzenie włączone */}
+                    {locationSettings.trackLiveRoutes && (
+                      <GPSLiveTracker
+                        vehicle={
+                          activeTrips[0]?.vehicleId
+                            ? vehicles.find((v) => v.id === activeTrips[0].vehicleId)
+                            : null
+                        }
+                        autoTrack={showLiveTracking}
+                        highAccuracy={locationSettings.highAccuracy}
+                        trackingInterval={locationSettings.trackingInterval}
+                        onLocationUpdate={(pos) => {
+                          if (pos) setUserLocation({ lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy || 0 });
+                          if (locationSettings.autoCenterOnLocation && pos) {
+                            setAutoCenter(true);
+                          }
+                        }}
+                      />
+                    )}
 
                     {/* Ustawienia śledzenia */}
                     <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700 space-y-3">
                       <h4 className="text-theme-white text-sm font-semibold">Ustawienia</h4>
                       {[
-                        { label: "Śledzenie na żywo", state: showLiveTracking, set: setShowLiveTracking },
+                        { label: "Śledzenie na żywo", state: showLiveTracking, set: setShowLiveTracking, disabled: !locationSettings.trackLiveRoutes },
                         { label: "Znaczniki trasy", state: showRouteMarkers, set: setShowRouteMarkers },
                         { label: "Auto-centrowanie", state: autoCenter, set: setAutoCenter },
-                      ].map(({ label, state, set }) => (
+                      ].map(({ label, state, set, disabled }) => (
                         <div key={label} className="flex items-center justify-between">
                           <Label className="text-theme-white-secondary text-xs">{label}</Label>
-                          <Switch checked={state} onCheckedChange={set} />
+                          <Switch 
+                            checked={state} 
+                            onCheckedChange={set} 
+                            disabled={disabled}
+                          />
                         </div>
                       ))}
                     </div>
@@ -380,7 +456,6 @@ export default function MapPage() {
 
                   {/* Zakładka: Trasy */}
                   <TabsContent value="route" className="mt-3 space-y-3">
-                    {/* Planowanie nowej trasy */}
                     <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-theme-white text-sm font-semibold flex items-center gap-2">
@@ -481,7 +556,6 @@ export default function MapPage() {
                       )}
                     </div>
 
-                    {/* Zapisane trasy */}
                     <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700">
                       <h4 className="text-theme-white text-sm font-semibold mb-3 flex items-center gap-2">
                         <Star className="w-4 h-4 text-yellow-400" />
@@ -555,7 +629,6 @@ export default function MapPage() {
                                   </Button>
                                 </div>
                               </div>
-                              {/* Szczegóły wybranej trasy */}
                               <AnimatePresence>
                                 {selectedSavedRoute?.id === route.id && (
                                   <motion.div
@@ -664,7 +737,6 @@ export default function MapPage() {
         {/* Mapa */}
         <div className="flex-1 min-w-0">
           <GlassCard className="p-0 overflow-hidden map-container">
-            {/* Pasek narzędzi mapy */}
             <div className="flex items-center justify-between p-3 border-b border-slate-700">
               <div className="flex items-center gap-2">
                 {!showSidebar && (
@@ -688,7 +760,6 @@ export default function MapPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Styl mapy */}
                 <div className="flex gap-1">
                   {[
                     { id: "road", icon: Map, title: "Mapa drogowa" },
@@ -710,7 +781,6 @@ export default function MapPage() {
 
                 <div className="h-5 w-px bg-slate-700" />
 
-                {/* Zoom i fullscreen */}
                 <div className="flex gap-1">
                   <Button
                     variant="ghost"
@@ -753,7 +823,6 @@ export default function MapPage() {
               </div>
             </div>
 
-            {/* Informacja o zaznaczonej trasie */}
             {selectedSavedRoute && (
               <div className="px-3 py-2 bg-primary/10 border-b border-primary/20 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -775,10 +844,9 @@ export default function MapPage() {
               </div>
             )}
 
-            {/* Komponent mapy */}
             <MapView
               trip={selectedTrip}
-              showLiveTracking={showLiveTracking}
+              showLiveTracking={showLiveTracking && locationSettings.gpsEnabled}
               showRoute={!!selectedTrip}
               showMarkers={showRouteMarkers}
               routeColor={
