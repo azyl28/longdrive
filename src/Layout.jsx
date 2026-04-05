@@ -101,6 +101,7 @@ export default function Layout({ children, currentPageName }) {
            location.pathname.toLowerCase().startsWith(`/${page.toLowerCase()}/`);
   };
 
+  // 🔧 POPRAWA: zmieniono 'path' na 'page'
   const getPageUrl = (page) => {
     return pageToPath[page] || `/${page.toLowerCase()}`;
   };
@@ -154,8 +155,8 @@ export default function Layout({ children, currentPageName }) {
                 </div>
               </div>
 
-              {/* Navigation */}
-              <nav className="flex-1 space-y-1 overflow-y-auto">
+              {/* 🔧 POPRAWA: Ukryty pasek przewijania w menu */}
+              <nav className="flex-1 space-y-1 overflow-y-auto scrollbar-none">
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.page);
