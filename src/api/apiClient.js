@@ -1,7 +1,8 @@
 // src/api/apiClient.js
 import { logApi } from '@/lib/errorHandler';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+// Użyj zmiennej środowiskowej, z fallbackiem do localhost
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const getToken = () => localStorage.getItem('token');
 const setToken = (token) => {
@@ -39,20 +40,37 @@ async function apiRequest(endpoint, options = {}) {
     if (response.status === 401) {
       setToken(null);
       logApi(endpoint, method, 401, { duration });
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
       throw new Error('Sesja wygasła. Zaloguj się ponownie.');
     }
     
     if (!response.ok) {
-      const error = await response.json();
-      logApi(endpoint, method, response.status, { duration, error });
-      throw new Error(error.error || 'Błąd zapytania');
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { error: `Błąd ${response.status}` };
+      }
+      logApi(endpoint, method, response.status, { duration, error: errorData });
+      throw new Error(errorData.error || errorData.message || `Błąd ${response.status}`);
+    }
+    
+    if (response.status === 204) {
+      logApi(endpoint, method, response.status, { duration });
+      return null;
     }
     
     const data = await response.json();
     logApi(endpoint, method, response.status, { duration, success: true });
     return data;
   } catch (error) {
-    logApi(endpoint, method, 'NETWORK_ERROR', { message: error.message });
+    if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+      logApi(endpoint, method, 'NETWORK_ERROR', { message: error.message });
+      throw new Error('Brak połączenia z serwerem. Sprawdź swoje połączenie internetowe.');
+    }
+    logApi(endpoint, method, 'UNKNOWN_ERROR', { message: error.message });
     throw error;
   }
 }
@@ -231,7 +249,7 @@ const api = {
     method: 'DELETE',
   }),
   
-  // Settings - ✅ POPRAWIENE: przekierowuje do company-settings
+  // Settings
   getSettings: () => apiRequest('/company-settings').catch(() => ({})),
   
   updateSettings: (data) => apiRequest('/company-settings', {
