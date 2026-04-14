@@ -15,8 +15,31 @@ const companySettingsRoutes = require('./routes/companySettingsRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
+// --- POPRAWIONA KONFIGURACJA CORS ---
+const allowedOrigins = [
+  'https://longdrive.onrender.com', // Twój frontend na Renderze
+  'http://localhost:5173',          // Lokalny frontend Vite
+  'http://localhost:3000'           // Dodatkowy port lokalny (opcjonalnie)
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Zezwalaj na zapytania bez origin (np. Postman, curl, aplikacje mobilne)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`❌ CORS zablokował zapytanie z origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Kluczowe dla ciasteczek i nagłówków autoryzacji
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+// --- KONIEC KONFIGURACJI CORS ---
+
 app.use(express.json());
 
 // Główne trasy API
