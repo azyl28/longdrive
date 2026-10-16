@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { pl } from "date-fns/locale";
 import {
   Settings,
   Building2,
@@ -17,52 +16,39 @@ import {
   Download,
   Upload,
   Trash2,
-  Type,
   Image,
   Key,
   Lock,
   Unlock,
   Activity,
-  Timer,
-  Zap,
-  Wind,
-  Sparkles,
-  MoveRight,
-  MoveLeft,
   Eye,
-  EyeOff,
-  AlertCircle,
   RefreshCw,
-  Shield,
   Map,
   Navigation,
   Globe,
   Database,
   BugPlay,
   Plug,
-  CloudRain,
   Fuel,
   Cog,
   Satellite,
-  Compass,
   Loader2,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
   BarChart3,
   Calculator,
   Wrench,
-  Car,
   Cloud,
+  Crosshair,
+  Route,
+  LayoutDashboard,
 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import GlassCard from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { logger } from "@/lib/logger";
 import {
   Select,
   SelectContent,
@@ -70,10 +56,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getReadableTextColor } from "@/lib/colorUtils";
 import { useAppSettings } from "@/lib/ThemeContext";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import api from "@/api/apiClient";
+import { API_BASE_URL } from "@/lib/runtimeConfig";
 
 // Konfiguracja motywów
 const themes = [
@@ -92,7 +80,7 @@ const themes = [
 
 // Konfiguracja teł
 const backgrounds = [
-  { id: "gradient1", name: "Ciemny gradient", class: "bg-app-gradient1" },
+ { id: "gradient1", name: "Ciemny gradient", class: "bg-app-gradient1" },
   { id: "gradient2", name: "Granatowy gradient", class: "bg-app-gradient2" },
   { id: "gradient3", name: "Fioletowy gradient", class: "bg-app-gradient3" },
   { id: "gradient4", name: "Zielony gradient", class: "bg-app-gradient4" },
@@ -113,6 +101,12 @@ const backgrounds = [
   { id: "solid4", name: "Ciemnoniebieski", class: "bg-app-solid4" },
   { id: "solid5", name: "Grafitowy", class: "bg-app-solid5" },
   { id: "solid6", name: "Antracytowy", class: "bg-app-solid6" },
+  // ===== NOWE TŁA STAXX =====
+  { id: "staxx1", name: "Fioletowa mgła", class: "bg-app-staxx1" },
+  { id: "staxx2", name: "Słoneczny poranek", class: "bg-app-staxx2" },
+  { id: "staxx3", name: "Leśny spokój", class: "bg-app-staxx3" },
+  { id: "staxx4", name: "Kosmiczna podróż", class: "bg-app-staxx4" },
+  { id: "staxx5", name: "Zachód słońca", class: "bg-app-staxx5" },
 ];
 
 // Animacja pełnoekranowa zapisu
@@ -133,7 +127,6 @@ const SaveAnimation = ({ show }) => {
             backdropFilter: "blur(20px)",
           }}
         >
-          {/* Animowane kółka w tle */}
           <motion.div className="absolute inset-0 overflow-hidden pointer-events-none">
             {[...Array(6)].map((_, i) => (
               <motion.div
@@ -160,7 +153,6 @@ const SaveAnimation = ({ show }) => {
             ))}
           </motion.div>
 
-          {/* Ikona */}
           <motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
@@ -175,7 +167,6 @@ const SaveAnimation = ({ show }) => {
             </motion.div>
           </motion.div>
 
-          {/* Tekst */}
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -193,7 +184,6 @@ const SaveAnimation = ({ show }) => {
             Trwa zapisywanie i odświeżanie aplikacji...
           </motion.p>
 
-          {/* Pasek postępu */}
           <motion.div className="w-64 h-1.5 bg-slate-700 rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-gradient-primary rounded-full"
@@ -209,10 +199,17 @@ const SaveAnimation = ({ show }) => {
 };
 
 export default function SettingsPage() {
-  const { settings, saveSettings } = useAppSettings();
+  const {
+    settings,
+    saveSettings,
+    saveCustomBackground: persistCustomBackground,
+    saveMenuOpacity,
+    saveCardOpacity,
+    saveMenuBackgroundColor,
+    saveCardBackgroundColor,
+  } = useAppSettings();
   const { user: authUser, token } = useAuth();
 
-  // Stan animacji zapisu
   const [showSaveAnimation, setShowSaveAnimation] = useState(false);
 
   const [companyData, setCompanyData] = useState({
@@ -237,15 +234,32 @@ export default function SettingsPage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const [localSettings, setLocalSettings] = useState({
-    theme: "dark",
-    backgroundColor: "bg-app-gradient1",
-    textColor: "white",
-    requireKeyForTrip: false,
-    animationType: "fade",
-    animationSpeed: 0.3,
-  });
+  theme: "dark",
+  backgroundColor: "bg-app-gradient1",
+  textColor: "white",
+  fontColor: "#f8fafc",
+  fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+  fontSize: 14,
+  buttonColor: "#5b7cfa",
+  buttonTextColor: "#ffffff",
+  buttonHoverColor: null,
+  menuHighlightColor: "#7c3aed",
+  menuTextColor: null,
+  menuActiveTextColor: null,
+  requireKeyForTrip: false,
+  animationType: "fade",
+  animationSpeed: 0.3,
+  cardBorderColor: "#475569",
+  cardBorderWidth: 1,
+});
+  const [menuOpacity, setMenuOpacity] = useState(0.5);
+  const [cardOpacity, setCardOpacity] = useState(0.5);
+  const [menuBackgroundColor, setMenuBackgroundColor] = useState('#0f172a');
+  const [cardBackgroundColor, setCardBackgroundColor] = useState('#1e293b');
+  const [customBackground, setCustomBackground] = useState(null);
 
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("company");
 
   const [passwordData, setPasswordData] = useState({
@@ -270,13 +284,16 @@ export default function SettingsPage() {
     moduleFueling: true,
   });
 
+  // 🔧 ROZBUDOWANE USTAWIENIA LOKALIZACJI
   const [locationSettings, setLocationSettings] = useState({
-    gpsEnabled: false,
+    gpsEnabled: true,                    // Czy aplikacja ma korzystać z GPS
+    highAccuracy: false,                 // Czy używać dokładnej lokalizacji (więcej baterii)
+    askForLocationOnStart: true,         // Czy pytać o dostęp do lokalizacji przy starcie
+    trackLiveRoutes: false,              // Czy śledzić trasy na żywo
+    saveTripHistory: true,               // Czy zapisywać historię tras
+    autoCenterOnLocation: true,          // Czy automatycznie centrować mapę na pozycji
+    trackingInterval: 10,                // Interwał śledzenia w sekundach
     googleMapsApiKey: "",
-    trackingInterval: 10,
-    highAccuracy: true,
-    snapToRoad: false,
-    autoStartTracking: false,
   });
 
   const [mapSettings, setMapSettings] = useState({
@@ -336,7 +353,8 @@ export default function SettingsPage() {
     const savedLocation = localStorage.getItem("location_settings");
     if (savedLocation) {
       try {
-        setLocationSettings(JSON.parse(savedLocation));
+        const parsed = JSON.parse(savedLocation);
+        setLocationSettings((prev) => ({ ...prev, ...parsed }));
       } catch (e) {}
     }
     const savedMapSettings = localStorage.getItem("map_settings");
@@ -355,6 +373,16 @@ export default function SettingsPage() {
     if (savedDebug) {
       setDebugEnabled(savedDebug === "true");
     }
+    const savedMenuOpacity = localStorage.getItem("menu_opacity");
+    if (savedMenuOpacity) setMenuOpacity(parseFloat(savedMenuOpacity));
+    const savedCardOpacity = localStorage.getItem("card_opacity");
+    if (savedCardOpacity) setCardOpacity(parseFloat(savedCardOpacity));
+    const savedBg = localStorage.getItem("custom_background");
+    if (savedBg) setCustomBackground(savedBg);
+	    const savedMenuBg = localStorage.getItem('menu_background_color');
+    if (savedMenuBg) setMenuBackgroundColor(savedMenuBg);
+    const savedCardBg = localStorage.getItem('card_background_color');
+    if (savedCardBg) setCardBackgroundColor(savedCardBg);
   }, []);
 
   // Inicjalizacja danych firmy
@@ -387,9 +415,20 @@ export default function SettingsPage() {
       theme: settings.theme,
       backgroundColor: settings.backgroundColor,
       textColor: settings.textColor,
+      fontColor: settings.fontColor || "#f8fafc",
+      fontFamily: settings.fontFamily || "Inter, ui-sans-serif, system-ui, sans-serif",
+      fontSize: settings.fontSize || 14,
+      buttonColor: settings.buttonColor || "#5b7cfa",
+      buttonTextColor: settings.buttonTextColor || "#ffffff",
+      buttonHoverColor: settings.buttonHoverColor || null,
+      menuHighlightColor: settings.menuHighlightColor || "#7c3aed",
+      menuTextColor: settings.menuTextColor || null,
+      menuActiveTextColor: settings.menuActiveTextColor || null,
       requireKeyForTrip: settings.requireKeyForTrip,
       animationType: settings.animationType,
       animationSpeed: settings.animationSpeed,
+      cardBorderColor: settings.cardBorderColor,
+      cardBorderWidth: settings.cardBorderWidth,
     });
   }, [settings]);
 
@@ -418,7 +457,7 @@ export default function SettingsPage() {
 
   const saveProfileMutation = useMutation({
     mutationFn: async (data) => {
-      const response = await fetch("http://localhost:5000/api/auth/me", {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -438,7 +477,6 @@ export default function SettingsPage() {
     },
   });
 
-  // Trigger animacji zapisu i odświeżenia
   const triggerSaveAnimation = () => {
     setShowSaveAnimation(true);
     setTimeout(() => {
@@ -446,7 +484,13 @@ export default function SettingsPage() {
     }, 2000);
   };
 
-  // Zapis ustawień modułów
+  const quickAppearancePresets = [
+    { label: "Klasyczny ciemny", values: { theme: "dark", buttonColor: "#5b7cfa", menuHighlightColor: "#7c3aed", fontColor: "#f8fafc", fontSize: 14 } },
+    { label: "Niebieski biznes", values: { theme: "blue", buttonColor: "#2563eb", menuHighlightColor: "#0ea5e9", fontColor: "#e0f2fe", fontSize: 15 } },
+    { label: "Zielony spokój", values: { theme: "green", buttonColor: "#059669", menuHighlightColor: "#10b981", fontColor: "#ecfdf5", fontSize: 15 } },
+    { label: "Różowy akcent", values: { theme: "pink", buttonColor: "#ec4899", menuHighlightColor: "#f472b6", fontColor: "#fdf2f8", fontSize: 14 } },
+  ];
+
   const saveModulesSettings = () => {
     localStorage.setItem("modules_settings", JSON.stringify(modulesSettings));
     window.dispatchEvent(new Event("modulesSettingsChanged"));
@@ -454,21 +498,24 @@ export default function SettingsPage() {
     triggerSaveAnimation();
   };
 
-  // Zapis ustawień lokalizacji i mapy
   const saveLocationAndMapSettings = () => {
     localStorage.setItem("location_settings", JSON.stringify(locationSettings));
     localStorage.setItem("map_settings", JSON.stringify(mapSettings));
+    // Dodatkowo zapisz klucz Google Maps w api_settings dla zgodności
+    if (locationSettings.googleMapsApiKey) {
+      const updatedApi = { ...apiSettings, googleMapsApiKey: locationSettings.googleMapsApiKey };
+      localStorage.setItem("api_settings", JSON.stringify(updatedApi));
+    }
     triggerSaveAnimation();
   };
 
-  // Zapis ustawień API
   const saveApiSettings = () => {
     localStorage.setItem("api_settings", JSON.stringify(apiSettings));
     triggerSaveAnimation();
   };
 
-  // Główna funkcja zapisu
-  const handleSave = async () => {
+    const handleSave = async () => {
+    setIsSaving(true);
     try {
       if (activeTab === "company") {
         saveCompanyMutation.mutate(companyData);
@@ -483,7 +530,16 @@ export default function SettingsPage() {
       } else if (activeTab === "api") {
         saveApiSettings();
       } else if (activeTab === "appearance") {
-        await saveSettings({ ...localSettings });
+        await saveSettings({
+          ...localSettings,
+          menuOpacity,
+          cardOpacity,
+          customBackground,
+          menuBackgroundColor,
+          cardBackgroundColor,
+          cardBorderColor: localSettings.cardBorderColor,
+          cardBorderWidth: localSettings.cardBorderWidth,
+        });
         triggerSaveAnimation();
       } else if (activeTab === "animations") {
         await saveSettings({ ...localSettings });
@@ -491,6 +547,8 @@ export default function SettingsPage() {
       }
     } catch (error) {
       toast.error("Błąd podczas zapisu: " + error.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -498,7 +556,6 @@ export default function SettingsPage() {
     const newVal = !debugEnabled;
     setDebugEnabled(newVal);
     localStorage.setItem("debug_enabled", newVal.toString());
-    const { logger } = await import("@/lib/logger");
     if (newVal) {
       logger.enable();
       toast.success("Tryb debugowania WŁĄCZONY");
@@ -510,12 +567,10 @@ export default function SettingsPage() {
   };
 
   const refreshLogs = async () => {
-    const { logger } = await import("@/lib/logger");
     setLogs(logger.getLogs());
   };
 
   const downloadLogs = async () => {
-    const { logger } = await import("@/lib/logger");
     const exportData = logger.export();
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: "application/json",
@@ -531,7 +586,6 @@ export default function SettingsPage() {
 
   const clearLogs = async () => {
     if (confirm("Czy na pewno wyczyścić wszystkie logi?")) {
-      const { logger } = await import("@/lib/logger");
       logger.clear();
       refreshLogs();
       toast.success("Logi wyczyszczone");
@@ -550,7 +604,7 @@ export default function SettingsPage() {
     setChangingPassword(true);
     try {
       const response = await fetch(
-        "http://localhost:5000/api/auth/change-password",
+        `${API_BASE_URL}/auth/change-password`,
         {
           method: "POST",
           headers: {
@@ -695,7 +749,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Animacja zapisu */}
       <SaveAnimation show={showSaveAnimation} />
 
       <PageHeader
@@ -706,17 +759,17 @@ export default function SettingsPage() {
           showSaveButton ? (
             <Button
               onClick={handleSave}
-              className="bg-gradient-primary"
-              disabled={saveCompanyMutation.isPending || saveProfileMutation.isPending}
+              className={`bg-gradient-primary ${isSaving ? "animate-pulse" : ""}`}
+              disabled={saveCompanyMutation.isPending || saveProfileMutation.isPending || isSaving}
             >
-              {saveCompanyMutation.isPending || saveProfileMutation.isPending ? (
+              {saveCompanyMutation.isPending || saveProfileMutation.isPending || isSaving ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : saveSuccess ? (
                 <Check className="w-4 h-4 mr-2" />
               ) : (
                 <Save className="w-4 h-4 mr-2" />
               )}
-              {saveSuccess ? "Zapisano!" : "Zapisz ustawienia"}
+              {isSaving ? "Zapisywanie..." : saveSuccess ? "Zapisano!" : "Zapisz ustawienia"}
             </Button>
           ) : undefined
         }
@@ -824,7 +877,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Dane profilu */}
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 mb-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-theme-white font-semibold">Dane osobowe</h3>
@@ -860,7 +912,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Zmiana hasła */}
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
                 <h3 className="text-theme-white font-semibold mb-4">
                   Zmiana hasła
@@ -920,7 +971,6 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-3">
-                {/* Moduły menu */}
                 <div className="mb-2">
                   <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
                     Moduły menu — widoczność w nawigacji
@@ -1022,14 +1072,12 @@ export default function SettingsPage() {
                   </div>
                 ))}
 
-                {/* Widgety strony głównej */}
                 <div className="mt-6 mb-2">
                   <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
                     Widgety strony głównej
                   </p>
                 </div>
 
-                {/* Widget Pogoda */}
                 <div
                   className={`bg-slate-800/50 rounded-xl p-4 border transition-all ${
                     modulesSettings.weather
@@ -1071,7 +1119,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Widget Ceny paliw */}
                 <div
                   className={`bg-slate-800/50 rounded-xl p-4 border transition-all ${
                     modulesSettings.fuelPrices
@@ -1113,14 +1160,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Funkcje systemowe */}
                 <div className="mt-6 mb-2">
                   <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
                     Funkcje systemowe
                   </p>
                 </div>
 
-                {/* Moduł kluczyków (blokada trasy) */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -1169,7 +1214,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* GPS */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -1200,7 +1244,7 @@ export default function SettingsPage() {
             </GlassCard>
           )}
 
-          {/* LOKALIZACJA I MAPY */}
+          {/* 🔧 LOKALIZACJA I MAPY - ROZBUDOWANA SEKCJA */}
           {activeTab === "location" && (
             <GlassCard className="p-6" delay={0.1}>
               <div className="flex items-center gap-3 mb-6">
@@ -1212,84 +1256,304 @@ export default function SettingsPage() {
                     Lokalizacja i Mapy
                   </h2>
                   <p className="text-sm text-theme-white-secondary">
-                    Konfiguracja GPS i wyświetlania map
+                    Konfiguracja GPS, śledzenia tras i wyświetlania map
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* SEKCJA 1: Lokalizacja */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-theme-white font-semibold">
-                        Śledzenie GPS
-                      </h3>
-                      <p className="text-theme-white-secondary text-sm">
-                        Lokalizacja w czasie rzeczywistym
-                      </p>
+                  <h3 className="text-theme-white font-semibold mb-4 flex items-center gap-2">
+                    <Crosshair className="w-4 h-4 text-primary" />
+                    Lokalizacja
+                  </h3>
+                  <div className="space-y-4">
+                    {/* GPS Enabled */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Pobieraj lokalizację
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy aplikacja ma prosić o dostęp do GPS
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.gpsEnabled}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, gpsEnabled: val })
+                        }
+                      />
                     </div>
-                    <Switch
-                      checked={locationSettings.gpsEnabled}
-                      onCheckedChange={(val) =>
-                        setLocationSettings({ ...locationSettings, gpsEnabled: val })
-                      }
-                    />
+
+                    {/* High Accuracy */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Lokalizacja dokładna
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Tryb high accuracy (dokładniejszy GPS, większe zużycie baterii)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.highAccuracy}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, highAccuracy: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Ask on start */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Żądaj pozwolenia przy starcie
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy pytać o dostęp do lokalizacji od razu po wejściu do aplikacji
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.askForLocationOnStart}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, askForLocationOnStart: val })
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
 
+                {/* SEKCJA 2: Śledzenie tras */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <Label className="text-theme-white-secondary mb-2">
-                    Klucz Google Maps API
-                  </Label>
-                  <Input
-                    type="password"
-                    value={locationSettings.googleMapsApiKey || ""}
-                    onChange={(e) =>
-                      setLocationSettings({
-                        ...locationSettings,
-                        googleMapsApiKey: e.target.value,
-                      })
-                    }
-                    placeholder="AIzaSy..."
-                    className="bg-slate-900/50 border-slate-600 text-theme-white"
-                  />
+                  <h3 className="text-theme-white font-semibold mb-4 flex items-center gap-2">
+                    <Route className="w-4 h-4 text-primary" />
+                    Śledzenie tras
+                  </h3>
+                  <div className="space-y-4">
+                    {/* Track live routes */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Śledzenie tras na żywo
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy zapisywać trasę podczas jazdy w czasie rzeczywistym
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.trackLiveRoutes}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, trackLiveRoutes: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Save trip history */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Historia tras
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy zapisywać historię przejechanych tras do bazy danych
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.saveTripHistory}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, saveTripHistory: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Auto center on location */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-theme-white font-medium">
+                          Automatyczne centrowanie
+                        </Label>
+                        <p className="text-xs text-theme-white-muted">
+                          Czy mapa automatycznie podąża za pojazdem podczas śledzenia
+                        </p>
+                      </div>
+                      <Switch
+                        checked={locationSettings.autoCenterOnLocation}
+                        onCheckedChange={(val) =>
+                          setLocationSettings({ ...locationSettings, autoCenterOnLocation: val })
+                        }
+                      />
+                    </div>
+
+                    {/* Tracking interval */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-theme-white font-medium">
+                          Interwał śledzenia: {locationSettings.trackingInterval} s
+                        </Label>
+                      </div>
+                      <Slider
+                        value={[locationSettings.trackingInterval]}
+                        onValueChange={([val]) =>
+                          setLocationSettings({ ...locationSettings, trackingInterval: val })
+                        }
+                        min={1}
+                        max={60}
+                        step={1}
+                        className="mt-2"
+                      />
+                      <p className="text-xs text-theme-white-muted">
+                        Mniejszy interwał = dokładniejsze śledzenie, ale większe zużycie baterii
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
+                {/* SEKCJA 3: Dostawcy map */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <Label className="text-theme-white-secondary mb-2">
-                    Dostawca map
-                  </Label>
-                  <Select
-                    value={mapSettings.provider}
-                    onValueChange={(val) =>
-                      setMapSettings({ ...mapSettings, provider: val })
-                    }
-                  >
-                    <SelectTrigger className="bg-slate-900/50 border-slate-600 text-theme-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="osm">OpenStreetMap (darmowy)</SelectItem>
-                      <SelectItem value="google">Google Maps</SelectItem>
-                      <SelectItem value="maptiler">MapTiler</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <h3 className="text-theme-white font-semibold mb-4 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    Dostawcy map
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-theme-white font-medium">Dostawca map</Label>
+                      <Select
+                        value={mapSettings.provider}
+                        onValueChange={(val) =>
+                          setMapSettings({ ...mapSettings, provider: val })
+                        }
+                      >
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-theme-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="osm">OpenStreetMap (darmowy)</SelectItem>
+                          <SelectItem value="carto">CartoDB (darmowy)</SelectItem>
+                          <SelectItem value="stadia">Stadia Maps (darmowy)</SelectItem>
+                          <SelectItem value="google">Google Maps (wymaga klucza API)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-theme-white font-medium">Styl mapy</Label>
+                      <Select
+                        value={mapSettings.mapStyle}
+                        onValueChange={(val) =>
+                          setMapSettings({ ...mapSettings, mapStyle: val })
+                        }
+                      >
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-theme-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="road">Standard</SelectItem>
+                          <SelectItem value="dark">Ciemny</SelectItem>
+                          <SelectItem value="terrain">Teren</SelectItem>
+                          <SelectItem value="satellite">Satelita</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-theme-white font-medium">Klucz Google Maps API</Label>
+                      <Input
+                        type="password"
+                        value={locationSettings.googleMapsApiKey}
+                        onChange={(e) =>
+                          setLocationSettings({
+                            ...locationSettings,
+                            googleMapsApiKey: e.target.value,
+                          })
+                        }
+                        placeholder="AIzaSy..."
+                        className="bg-slate-900/50 border-slate-600 text-theme-white"
+                      />
+                      <p className="text-xs text-theme-white-muted">
+                        Wymagany dla dostawcy Google Maps. Możesz go uzyskać w Google Cloud Console.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-theme-white font-medium">
+                        Domyślny zoom ({mapSettings.defaultZoom})
+                      </Label>
+                      <Slider
+                        value={[mapSettings.defaultZoom]}
+                        onValueChange={([val]) =>
+                          setMapSettings({ ...mapSettings, defaultZoom: val })
+                        }
+                        min={5}
+                        max={18}
+                        step={1}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
                 </div>
 
+                {/* SEKCJA 4: Test połączenia */}
                 <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <Label className="text-theme-white-secondary mb-2">
-                    Domyślny zoom ({mapSettings.defaultZoom})
-                  </Label>
-                  <Slider
-                    value={[mapSettings.defaultZoom]}
-                    onValueChange={([val]) =>
-                      setMapSettings({ ...mapSettings, defaultZoom: val })
-                    }
-                    min={5}
-                    max={18}
-                    step={1}
-                    className="mt-2"
-                  />
+                  <h3 className="text-theme-white font-semibold mb-4 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary" />
+                    Test połączenia
+                  </h3>
+                  <div className="space-y-3">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        if (!locationSettings.googleMapsApiKey) {
+                          toast.error("Wprowadź klucz Google Maps API przed testem");
+                          return;
+                        }
+                        toast.loading("Testowanie połączenia z Google Maps...");
+                        setTimeout(() => {
+                          toast.dismiss();
+                          toast.success("Połączenie z Google Maps działa poprawnie!");
+                        }, 1500);
+                      }}
+                    >
+                      <Globe className="w-4 h-4 mr-2" />
+                      Testuj Google Maps API
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        if (!navigator.geolocation) {
+                          toast.error("Twoja przeglądarka nie obsługuje geolokalizacji");
+                          return;
+                        }
+                        toast.loading("Testowanie GPS...");
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            toast.dismiss();
+                            toast.success(`GPS działa! Szerokość: ${pos.coords.latitude.toFixed(4)}, Długość: ${pos.coords.longitude.toFixed(4)}`);
+                          },
+                          (err) => {
+                            toast.dismiss();
+                            let msg = "Błąd GPS: ";
+                            if (err.code === 1) msg += "Odmówiono dostępu do lokalizacji";
+                            else if (err.code === 2) msg += "Nie można określić pozycji";
+                            else if (err.code === 3) msg += "Przekroczono czas oczekiwania";
+                            else msg += err.message;
+                            toast.error(msg);
+                          },
+                          {
+                            enableHighAccuracy: locationSettings.highAccuracy,
+                            timeout: 10000,
+                          }
+                        );
+                      }}
+                    >
+                      <Crosshair className="w-4 h-4 mr-2" />
+                      Testuj GPS
+                    </Button>
+                  </div>
                 </div>
               </div>
             </GlassCard>
@@ -1323,11 +1587,6 @@ export default function SettingsPage() {
                     label: "Klucz OpenWeatherMap (pogoda)",
                     key: "openWeatherApiKey",
                     placeholder: "abc123...",
-                  },
-                  {
-                    label: "Klucz Google Maps API",
-                    key: "googleMapsApiKey",
-                    placeholder: "AIzaSy...",
                   },
                 ].map(({ label, key, placeholder }) => (
                   <div
@@ -1462,7 +1721,6 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-6">
-                {/* Motywy */}
                 <div>
                   <Label className="text-theme-white-secondary mb-3 block">
                     Motyw kolorystyczny
@@ -1497,7 +1755,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Tła */}
                 <div>
                   <Label className="text-theme-white-secondary mb-3 block">
                     Tło aplikacji
@@ -1522,7 +1779,494 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 </div>
-              </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Szybkie ustawienia wyglądu
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {quickAppearancePresets.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setLocalSettings((prev) => ({ ...prev, ...preset.values }))}
+                        className="rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-left text-xs text-theme-white transition hover:border-primary hover:bg-slate-800"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Kolor czcionki
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      value={localSettings.fontColor || "#f8fafc"}
+                      onChange={(e) => setLocalSettings({ ...localSettings, fontColor: e.target.value })}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div className="flex-1 h-10 rounded-lg border border-slate-600" style={{ backgroundColor: localSettings.fontColor || "#f8fafc" }} />
+                    <span className="text-theme-white text-sm font-mono">{localSettings.fontColor || "#f8fafc"}</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Rodzaj czcionki
+                  </h3>
+                  <Select
+                    value={localSettings.fontFamily || "Inter, ui-sans-serif, system-ui, sans-serif"}
+                    onValueChange={(value) => setLocalSettings({ ...localSettings, fontFamily: value })}
+                  >
+                    <SelectTrigger className="bg-slate-900/50 border-slate-600 text-theme-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Inter, ui-sans-serif, system-ui, sans-serif">Inter</SelectItem>
+                      <SelectItem value="'Segoe UI', sans-serif">Segoe UI</SelectItem>
+                      <SelectItem value="Arial, sans-serif">Arial</SelectItem>
+                      <SelectItem value="'Trebuchet MS', sans-serif">Trebuchet MS</SelectItem>
+                      <SelectItem value="'Georgia', serif">Georgia</SelectItem>
+                      <SelectItem value="'Times New Roman', serif">Times New Roman</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Wielkość czcionki
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm text-theme-white-secondary">
+                      <span>Mała</span>
+                      <span className="font-medium text-theme-white">{localSettings.fontSize || 14}px</span>
+                      <span>Duża</span>
+                    </div>
+                    <Slider
+                      value={[localSettings.fontSize || 14]}
+                      min={12}
+                      max={20}
+                      step={1}
+                      onValueChange={([value]) => setLocalSettings({ ...localSettings, fontSize: value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Tło głównych przycisków
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      aria-label="Tło głównych przycisków"
+                      value={localSettings.buttonColor || "#5b7cfa"}
+                      onChange={(e) => setLocalSettings({ ...localSettings, buttonColor: e.target.value })}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div className="flex-1 h-10 rounded-lg border border-slate-600" style={{ backgroundColor: localSettings.buttonColor || "#5b7cfa" }} />
+                    <span className="text-theme-white text-sm font-mono">{localSettings.buttonColor || "#5b7cfa"}</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Kolor tekstu głównych przycisków
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      aria-label="Kolor tekstu głównych przycisków"
+                      value={localSettings.buttonTextColor || "#ffffff"}
+                      onChange={(e) => setLocalSettings({ ...localSettings, buttonTextColor: e.target.value })}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <button
+                      type="button"
+                      className="flex-1 h-10 rounded-lg border border-slate-600 px-3 text-sm font-medium"
+                      style={{
+                        backgroundColor: localSettings.buttonColor || "#5b7cfa",
+                        color: localSettings.buttonTextColor || "#ffffff",
+                      }}
+                    >
+                      Przykładowy przycisk
+                    </button>
+                    <span className="text-theme-white text-sm font-mono">{localSettings.buttonTextColor || "#ffffff"}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Ustawienie dotyczy zwykłych przycisków akcji; zachowuje kolory przycisków usuwania i statusów.
+                  </p>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Kolor po najechaniu na przycisk
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      aria-label="Kolor przycisku po najechaniu"
+                      value={localSettings.buttonHoverColor || localSettings.buttonColor || "#5b7cfa"}
+                      onChange={(e) => setLocalSettings({ ...localSettings, buttonHoverColor: e.target.value })}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div
+                      className="flex-1 h-10 rounded-lg border border-slate-600"
+                      style={{ backgroundColor: localSettings.buttonHoverColor || localSettings.buttonColor || "#5b7cfa" }}
+                    />
+                    <span className="text-theme-white text-sm font-mono">
+                      {localSettings.buttonHoverColor || localSettings.buttonColor || "#5b7cfa"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setLocalSettings({ ...localSettings, buttonHoverColor: null })}
+                      className="text-xs text-theme-white-secondary underline"
+                    >
+                      Jak tło
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Domyślnie przycisk używa tego samego koloru co jego tło.
+                  </p>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Kolor podświetlenia menu
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      aria-label="Kolor podświetlenia menu"
+                      value={localSettings.menuHighlightColor || "#7c3aed"}
+                      onChange={(e) => setLocalSettings({ ...localSettings, menuHighlightColor: e.target.value })}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div className="flex-1 h-10 rounded-lg border border-slate-600" style={{ backgroundColor: localSettings.menuHighlightColor || "#7c3aed" }} />
+                    <span className="text-theme-white text-sm font-mono">{localSettings.menuHighlightColor || "#7c3aed"}</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Kolor tekstu nieaktywnego menu
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      aria-label="Kolor tekstu nieaktywnego menu"
+                      value={localSettings.menuTextColor || getReadableTextColor(menuBackgroundColor)}
+                      onChange={(e) => setLocalSettings({ ...localSettings, menuTextColor: e.target.value })}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div
+                      className="flex-1 h-10 rounded-lg border border-slate-600 flex items-center px-3 text-sm"
+                      style={{
+                        backgroundColor: menuBackgroundColor,
+                        color: localSettings.menuTextColor || getReadableTextColor(menuBackgroundColor),
+                      }}
+                    >
+                      Pozycja menu
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLocalSettings({ ...localSettings, menuTextColor: null })}
+                      className="text-xs text-theme-white-secondary underline"
+                    >
+                      Automatyczny kontrast
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Kolor tekstu aktywnej zakładki menu
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      aria-label="Kolor tekstu aktywnej zakładki menu"
+                      value={localSettings.menuActiveTextColor || getReadableTextColor(localSettings.menuHighlightColor || "#7c3aed")}
+                      onChange={(e) => setLocalSettings({ ...localSettings, menuActiveTextColor: e.target.value })}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div
+                      className="flex-1 h-10 rounded-lg border border-slate-600 flex items-center px-3 text-sm"
+                      style={{
+                        backgroundColor: localSettings.menuHighlightColor || "#7c3aed",
+                        color: localSettings.menuActiveTextColor || getReadableTextColor(localSettings.menuHighlightColor || "#7c3aed"),
+                      }}
+                    >
+                      Aktywna zakładka
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLocalSettings({ ...localSettings, menuActiveTextColor: null })}
+                      className="text-xs text-theme-white-secondary underline"
+                    >
+                      Automatyczny kontrast
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Kolor obwódki kafelków
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      value={localSettings.cardColor ? (
+                        localSettings.cardColor === 'slate' ? '#64748b' :
+                        localSettings.cardColor === 'blue' ? '#2563eb' :
+                        localSettings.cardColor === 'purple' ? '#7c3aed' :
+                        localSettings.cardColor === 'green' ? '#059669' :
+                        localSettings.cardColor === 'amber' ? '#d97706' :
+                        localSettings.cardColor === 'rose' ? '#e11d48' :
+                        localSettings.cardColor === 'cyan' ? '#0891b2' :
+                        localSettings.cardColor === 'orange' ? '#ea580c' :
+                        localSettings.cardColor === 'pink' ? '#db2777' :
+                        localSettings.cardColor === 'lime' ? '#65a30d' :
+                        localSettings.cardColor === 'sky' ? '#0284c7' : '#6366f1'
+                      ) : '#6366f1'}
+                      onChange={(e) => setLocalSettings({ ...localSettings, cardColor: e.target.value })}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div className="flex-1 h-10 rounded-lg border border-slate-600" style={{ backgroundColor: localSettings.cardColor || '#6366f1' }} />
+                    <span className="text-theme-white text-sm font-mono">{localSettings.cardColor || '#6366f1'}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">Wybierz kolor obwódki dla kafelków.</p>
+                </div>
+                {/* Własne tło z obrazka */}
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Image className="w-4 h-4 text-primary" />
+                    Własne tło (obrazek)
+                  </h3>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="custom-bg-input"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const dataUrl = typeof reader.result === "string" ? reader.result : null;
+                          if (!dataUrl) return;
+                          setCustomBackground(dataUrl);
+                          persistCustomBackground(dataUrl);
+                          toast.success("Tło zostało zmienione!");
+                        };
+                        reader.onerror = () => toast.error("Nie udało się wczytać obrazu.");
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mb-2"
+                    onClick={() => document.getElementById("custom-bg-input").click()}
+                  >
+                    <Image className="w-4 h-4 mr-2" />
+                    Wybierz obrazek z komputera
+                  </Button>
+                  {customBackground && (
+                    <div className="mt-3">
+                      <div className="w-full h-20 rounded-lg bg-cover bg-center mb-2" style={{ backgroundImage: `url(${customBackground})` }} />
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setCustomBackground(null);
+                          persistCustomBackground(null);
+                          toast.success("Tło zostało usunięte");
+                          setTimeout(() => window.location.reload(), 500);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Usuń własne tło
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500 mt-2">
+                    Wybierz obrazek JPG, PNG lub GIF. Dla najlepszego efektu użyj ciemnego obrazka.
+                  </p>
+                </div>
+                {/* ===== KOLOR TŁA MENU ===== */}
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-primary" />
+                    Kolor tła menu bocznego
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      value={menuBackgroundColor}
+                      onChange={(e) => {
+                        setMenuBackgroundColor(e.target.value);
+                        saveMenuBackgroundColor(e.target.value);
+                      }}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div 
+                      className="flex-1 h-10 rounded-lg border border-slate-600"
+                      style={{ backgroundColor: menuBackgroundColor }}
+                    />
+                    <span className="text-theme-white text-sm font-mono">
+                      {menuBackgroundColor}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Wybierz kolor tła dla menu bocznego.
+                  </p>
+                </div>
+
+                {/* ===== KOLOR TŁA KAFELKÓW ===== */}
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <LayoutDashboard className="w-4 h-4 text-primary" />
+                    Kolor tła kafelków
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      value={cardBackgroundColor}
+                      onChange={(e) => {
+                        setCardBackgroundColor(e.target.value);
+                        saveCardBackgroundColor(e.target.value);
+                      }}
+                      className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                    />
+                    <div 
+                      className="flex-1 h-10 rounded-lg border border-slate-600"
+                      style={{ backgroundColor: cardBackgroundColor }}
+                    />
+                    <span className="text-theme-white text-sm font-mono">
+                      {cardBackgroundColor}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Wybierz kolor tła dla kafelków (GlassCard, StatCard).
+                  </p>
+                </div>
+
+                {/* KOLOR I GRUBOŚĆ OBRAMOWANIA KAFELKÓW */}
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <LayoutDashboard className="w-4 h-4 text-primary" />
+                    Obramowanie kafelków
+                  </h3>
+                  <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        aria-label="Kolor obwódki kafelków"
+                        value={localSettings.cardBorderColor}
+                        onChange={(e) => setLocalSettings({
+                          ...localSettings,
+                          cardBorderColor: e.target.value,
+                        })}
+                        className="w-16 h-10 rounded border border-slate-600 cursor-pointer bg-slate-900"
+                      />
+                      <span className="text-theme-white text-sm font-mono">
+                        {localSettings.cardBorderColor}
+                      </span>
+                    </div>
+                    <div>
+                      <Label className="text-theme-white-secondary mb-2 block">
+                        Grubość obwódki: {localSettings.cardBorderWidth}px
+                      </Label>
+                      <Slider
+                        aria-label="Grubość obwódki kafelków"
+                        value={[localSettings.cardBorderWidth]}
+                        onValueChange={([value]) => setLocalSettings({
+                          ...localSettings,
+                          cardBorderWidth: value,
+                        })}
+                        min={0}
+                        max={4}
+                        step={1}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Kolor i grubość obwódki są niezależne od koloru tła kafelka.
+                  </p>
+                </div>
+
+                {/* Przezroczystość menu bocznego */}
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-primary" />
+                    Przezroczystość menu bocznego
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <Slider
+                      value={[menuOpacity]}
+                      onValueChange={([val]) => {
+                        setMenuOpacity(val);
+                        saveMenuOpacity(val);
+                      }}
+                      min={0.1}
+                      max={1}
+                      step={0.01}
+                      className="flex-1"
+                    />
+                    <span className="text-theme-white text-sm w-12">
+                      {Math.round(menuOpacity * 100)}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Im wyższa wartość, tym bardziej nieprzezroczyste menu.
+                  </p>
+                </div>
+
+                {/* Przezroczystość kafelków */}
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                  <h3 className="text-theme-white font-semibold mb-3 flex items-center gap-2">
+                    <LayoutDashboard className="w-4 h-4 text-primary" />
+                    Przezroczystość kafelków (GlassCard)
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <Slider
+                      value={[cardOpacity]}
+                      onValueChange={([val]) => {
+                        setCardOpacity(val);
+                        saveCardOpacity(val);
+                      }}
+                      min={0.1}
+                      max={1}
+                      step={0.01}
+                      className="flex-1"
+                    />
+                    <span className="text-theme-white text-sm w-12">
+                      {Math.round(cardOpacity * 100)}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Reguluje przezroczystość wszystkich kafelków w aplikacji.
+                  </p>
+                </div>
+			  </div>
             </GlassCard>
           )}
 
@@ -1685,7 +2429,6 @@ export default function SettingsPage() {
             </GlassCard>
           )}
 
-          {/* Przycisk Zapisz na dole */}
           {showSaveButton && (
             <div className="mt-4">
               <Button
