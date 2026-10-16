@@ -1,8 +1,6 @@
 // src/api/apiClient.js
 import { logApi } from '@/lib/errorHandler';
-
-// Użyj zmiennej środowiskowej, z fallbackiem do localhost
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_BASE_URL } from '@/lib/runtimeConfig';
 
 const getToken = () => localStorage.getItem('token');
 const setToken = (token) => {
@@ -11,6 +9,16 @@ const setToken = (token) => {
   } else {
     localStorage.removeItem('token');
   }
+};
+
+// Helper do budowania query string
+const buildQueryString = (params) => {
+  if (!params || Object.keys(params).length === 0) return '';
+  const query = Object.entries(params)
+    .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+  return query ? `?${query}` : '';
 };
 
 async function apiRequest(endpoint, options = {}) {
@@ -28,10 +36,20 @@ async function apiRequest(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
   
+  // Obsługa FormData (dla przesyłania plików)
+  if (options.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
+  
   const config = {
     ...options,
     headers,
   };
+  
+  // Usuń body jeśli to GET lub HEAD
+  if (method === 'GET' || method === 'HEAD') {
+    delete config.body;
+  }
   
   try {
     const response = await fetch(url, config);
@@ -40,6 +58,7 @@ async function apiRequest(endpoint, options = {}) {
     if (response.status === 401) {
       setToken(null);
       logApi(endpoint, method, 401, { duration });
+      // Opcjonalnie: przekieruj na login
       if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }
@@ -51,14 +70,15 @@ async function apiRequest(endpoint, options = {}) {
       try {
         errorData = await response.json();
       } catch {
-        errorData = { error: `Błąd ${response.status}` };
+        errorData = { error: response.statusText };
       }
       logApi(endpoint, method, response.status, { duration, error: errorData });
-      throw new Error(errorData.error || errorData.message || `Błąd ${response.status}`);
+      throw new Error(errorData.error || errorData.message || `Błąd ${response.status}: ${response.statusText}`);
     }
     
+    // Dla odpowiedzi 204 No Content
     if (response.status === 204) {
-      logApi(endpoint, method, response.status, { duration });
+      logApi(endpoint, method, response.status, { duration, success: true });
       return null;
     }
     
@@ -66,8 +86,9 @@ async function apiRequest(endpoint, options = {}) {
     logApi(endpoint, method, response.status, { duration, success: true });
     return data;
   } catch (error) {
-    if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
-      logApi(endpoint, method, 'NETWORK_ERROR', { message: error.message });
+    // Rozróżnij błędy sieciowe od innych
+    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+      logApi(endpoint, method, 'NETWORK_ERROR', { message: 'Brak połączenia z serwerem' });
       throw new Error('Brak połączenia z serwerem. Sprawdź swoje połączenie internetowe.');
     }
     logApi(endpoint, method, 'UNKNOWN_ERROR', { message: error.message });
@@ -76,7 +97,7 @@ async function apiRequest(endpoint, options = {}) {
 }
 
 const api = {
-  // Auth
+  // ==================== AUTH ====================
   login: async (email, password) => {
     const result = await apiRequest('/auth/login', {
       method: 'POST',
@@ -89,10 +110,13 @@ const api = {
   },
   
   register: async (data) => {
-    const result = await apiRequest('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    const registerAccount = globalThis.longDriveRuntime?.registerAccount;
+    const result = typeof registerAccount === 'function'
+      ? await registerAccount(data)
+      : await apiRequest('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
     if (result.token) {
       setToken(result.token);
     }
@@ -104,14 +128,18 @@ const api = {
   },
   
   getMe: () => apiRequest('/auth/me'),
+
+  changePassword: async (oldPassword, newPassword) => {
+    return apiRequest('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+  },
   
-  // Vehicles
+  // ==================== VEHICLES ====================
   getVehicles: (params = {}) => {
-    const query = Object.entries(params)
-      .filter(([_, v]) => v !== undefined && v !== '')
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&');
-    return apiRequest(`/vehicles${query ? `?${query}` : ''}`);
+    const query = buildQueryString(params);
+    return apiRequest(`/vehicles${query}`);
   },
   
   getVehicle: (id) => apiRequest(`/vehicles/${id}`),
@@ -130,13 +158,10 @@ const api = {
     method: 'DELETE',
   }),
   
-  // Drivers
+  // ==================== DRIVERS ====================
   getDrivers: (params = {}) => {
-    const query = Object.entries(params)
-      .filter(([_, v]) => v !== undefined && v !== '')
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&');
-    return apiRequest(`/drivers${query ? `?${query}` : ''}`);
+    const query = buildQueryString(params);
+    return apiRequest(`/drivers${query}`);
   },
   
   getDriver: (id) => apiRequest(`/drivers/${id}`),
@@ -155,13 +180,10 @@ const api = {
     method: 'DELETE',
   }),
   
-  // Trips
+  // ==================== TRIPS ====================
   getTrips: (params = {}) => {
-    const query = Object.entries(params)
-      .filter(([_, v]) => v !== undefined && v !== '')
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&');
-    return apiRequest(`/trips${query ? `?${query}` : ''}`);
+    const query = buildQueryString(params);
+    return apiRequest(`/trips${query}`);
   },
   
   getTrip: (id) => apiRequest(`/trips/${id}`),
@@ -180,14 +202,25 @@ const api = {
     method: 'DELETE',
   }),
   
-  // Services
+  startTrip: (id, data) => apiRequest(`/trips/${id}/start`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  
+  endTrip: (id, data) => apiRequest(`/trips/${id}/end`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  
+  getActiveTrip: () => apiRequest('/trips/active'),
+  
+  // ==================== SERVICES ====================
   getServices: (params = {}) => {
-    const query = Object.entries(params)
-      .filter(([_, v]) => v !== undefined && v !== '')
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&');
-    return apiRequest(`/services${query ? `?${query}` : ''}`);
+    const query = buildQueryString(params);
+    return apiRequest(`/services${query}`);
   },
+  
+  getService: (id) => apiRequest(`/services/${id}`),
   
   createService: (data) => apiRequest('/services', {
     method: 'POST',
@@ -203,14 +236,13 @@ const api = {
     method: 'DELETE',
   }),
   
-  // Refuelings
+  // ==================== REFUELINGS ====================
   getRefuels: (params = {}) => {
-    const query = Object.entries(params)
-      .filter(([_, v]) => v !== undefined && v !== '')
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&');
-    return apiRequest(`/refuelings${query ? `?${query}` : ''}`);
+    const query = buildQueryString(params);
+    return apiRequest(`/refuelings${query}`);
   },
+  
+  getRefuel: (id) => apiRequest(`/refuelings/${id}`),
   
   createRefuel: (data) => apiRequest('/refuelings', {
     method: 'POST',
@@ -226,14 +258,13 @@ const api = {
     method: 'DELETE',
   }),
   
-  // Key logs
+  // ==================== KEY LOGS ====================
   getKeyLogs: (params = {}) => {
-    const query = Object.entries(params)
-      .filter(([_, v]) => v !== undefined && v !== '')
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&');
-    return apiRequest(`/key-logs${query ? `?${query}` : ''}`);
+    const query = buildQueryString(params);
+    return apiRequest(`/key-logs${query}`);
   },
+  
+  getKeyLog: (id) => apiRequest(`/key-logs/${id}`),
   
   createKeyLog: (data) => apiRequest('/key-logs', {
     method: 'POST',
@@ -249,7 +280,12 @@ const api = {
     method: 'DELETE',
   }),
   
-  // Settings
+  returnKey: (id, data) => apiRequest(`/key-logs/${id}/return`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  
+  // ==================== SETTINGS ====================
   getSettings: () => apiRequest('/company-settings').catch(() => ({})),
   
   updateSettings: (data) => apiRequest('/company-settings', {
@@ -263,6 +299,31 @@ const api = {
     method: 'PUT',
     body: JSON.stringify(data),
   }).catch(() => ({})),
+  
+  // ==================== STATISTICS ====================
+  getStatistics: (params = {}) => {
+    const query = buildQueryString(params);
+    return apiRequest(`/statistics${query}`);
+  },
+  
+  getDashboardStats: () => apiRequest('/statistics/dashboard'),
+  
+  // ==================== EXPORT ====================
+  exportData: (type, params = {}) => {
+    const query = buildQueryString(params);
+    return apiRequest(`/export/${type}${query}`, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+  },
+  
+  // ==================== UTILS ====================
+  // Sprawdzenie stanu serwera
+  healthCheck: () => apiRequest('/health').catch(() => ({ status: 'error' })),
+  
+  // Pobranie wersji API
+  getVersion: () => apiRequest('/version').catch(() => ({ version: 'unknown' })),
 };
 
 export default api;
