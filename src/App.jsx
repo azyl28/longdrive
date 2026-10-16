@@ -7,9 +7,10 @@ import { BrowserRouter as Router, Route, Routes, useLocation, Navigate, Outlet }
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { AppSettingsProvider, useAppSettings } from '@/lib/ThemeContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
+import WeatherPage from '@/pages/WeatherPage';  // 🔧 DODANY IMPORT
 import { useState, useEffect } from 'react';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -200,6 +201,7 @@ function App() {
                     <Route path="/calculators" element={<Pages.Calculators />} />
                     <Route path="/refueling" element={<Pages.Refueling />} />
                     <Route path="/map" element={<Pages.MapPage />} />
+                    <Route path="/weather" element={<WeatherPage />} />  {/* 🔧 DODANY ROUTE */}
                     <Route path="*" element={<PageNotFound />} />
                   </Route>
                 </Route>
